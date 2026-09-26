@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
+from app.core.exceptions import ValidationError
 from app.schemas.annotation import ProgressDetailOut
 from app.schemas.project import (
     ProjectCreate,
@@ -28,6 +29,18 @@ def list_projects(db: Session = Depends(get_db)) -> list[ProjectOut]:
 @router.get("/{project_id}", response_model=ProjectDetailOut)
 def get_project(project_id: int, db: Session = Depends(get_db)) -> ProjectDetailOut:
     return project_service.get_project_detail(db, project_id)
+
+
+@router.delete("/{project_id}", status_code=204)
+def delete_project(project_id: int, confirm_name: str, db: Session = Depends(get_db)) -> None:
+    """Permanent, unrecoverable. `confirm_name` must exactly match the
+    project's current name — a server-side safety net in addition to
+    whatever confirmation the UI already required, so this can't be
+    triggered by a bare DELETE with no knowledge of what's being deleted."""
+    project = project_service.get_project(db, project_id)
+    if confirm_name != project.name:
+        raise ValidationError("confirm_name did not match the project's name")
+    project_service.delete_project(db, project_id)
 
 
 @router.patch("/{project_id}/settings", response_model=ProjectSettingsOut)

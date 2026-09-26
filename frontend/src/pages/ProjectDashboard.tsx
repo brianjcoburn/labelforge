@@ -1,13 +1,18 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api/client'
 import type { Progress, ProjectDetail } from '../types/api'
 
 export default function ProjectDashboard() {
   const { projectId } = useParams()
+  const navigate = useNavigate()
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [progress, setProgress] = useState<Progress | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [confirmText, setConfirmText] = useState('')
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
     api
@@ -19,6 +24,21 @@ export default function ProjectDashboard() {
       .then(setProgress)
       .catch(() => {})
   }, [projectId])
+
+  async function handleDelete() {
+    if (!project || confirmText !== project.name) return
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      await api.delete(
+        `/projects/${project.id}?confirm_name=${encodeURIComponent(project.name)}`
+      )
+      navigate('/')
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete project')
+      setDeleting(false)
+    }
+  }
 
   if (error) return <p className="error">{error}</p>
   if (!project) return <p>Loading…</p>
@@ -127,6 +147,44 @@ export default function ProjectDashboard() {
             </a>
           </nav>
         </>
+      )}
+
+      <h2>Danger Zone</h2>
+      {!showDeleteConfirm ? (
+        <button className="secondary" onClick={() => setShowDeleteConfirm(true)}>
+          Delete Project
+        </button>
+      ) : (
+        <div className="annotation-card">
+          <p>
+            This permanently deletes <strong>{project.name}</strong> — its taxonomy,
+            dataset, all {project.record_count} records, every annotation, and any
+            saved prompts. This cannot be undone.
+          </p>
+          <label>
+            Type <strong>{project.name}</strong> to confirm
+            <input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} />
+          </label>
+          {deleteError && <p className="error">{deleteError}</p>}
+          <div className="actions">
+            <button
+              onClick={handleDelete}
+              disabled={deleting || confirmText !== project.name}
+            >
+              Delete Permanently
+            </button>
+            <button
+              className="secondary"
+              onClick={() => {
+                setShowDeleteConfirm(false)
+                setConfirmText('')
+                setDeleteError(null)
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )
