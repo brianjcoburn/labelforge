@@ -8,6 +8,7 @@ interface DraftLabel {
   description: string
   include_criteria: string
   exclude_criteria: string
+  examples: string // one per line in the textarea
 }
 
 const emptyLabel = (): DraftLabel => ({
@@ -15,7 +16,31 @@ const emptyLabel = (): DraftLabel => ({
   description: '',
   include_criteria: '',
   exclude_criteria: '',
+  examples: '',
 })
+
+interface ImportedLabel {
+  name?: unknown
+  description?: unknown
+  include_criteria?: unknown
+  exclude_criteria?: unknown
+  examples?: unknown
+}
+
+interface ImportedTaxonomy {
+  name?: unknown
+  labels?: unknown
+}
+
+function asDraftLabel(raw: ImportedLabel): DraftLabel {
+  return {
+    name: typeof raw.name === 'string' ? raw.name : '',
+    description: typeof raw.description === 'string' ? raw.description : '',
+    include_criteria: typeof raw.include_criteria === 'string' ? raw.include_criteria : '',
+    exclude_criteria: typeof raw.exclude_criteria === 'string' ? raw.exclude_criteria : '',
+    examples: Array.isArray(raw.examples) ? raw.examples.join('\n') : '',
+  }
+}
 
 export default function TaxonomyEditor() {
   const { projectId } = useParams()
@@ -39,6 +64,28 @@ export default function TaxonomyEditor() {
     )
   }
 
+  async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = '' // allow re-selecting the same file later
+    if (!file) return
+    setError(null)
+    try {
+      const text = await file.text()
+      const parsed = JSON.parse(text) as ImportedTaxonomy
+      if (!Array.isArray(parsed.labels) || parsed.labels.length === 0) {
+        throw new Error('JSON must have a non-empty "labels" array')
+      }
+      setName(typeof parsed.name === 'string' ? parsed.name : '')
+      setLabels((parsed.labels as ImportedLabel[]).map(asDraftLabel))
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? `Couldn't read that file: ${err.message}`
+          : "Couldn't read that file"
+      )
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSubmitting(true)
@@ -53,7 +100,10 @@ export default function TaxonomyEditor() {
             description: l.description || null,
             include_criteria: l.include_criteria || null,
             exclude_criteria: l.exclude_criteria || null,
-            examples: [],
+            examples: l.examples
+              .split('\n')
+              .map((line) => line.trim())
+              .filter(Boolean),
           })),
       })
       navigate(`/projects/${projectId}`)
@@ -90,9 +140,17 @@ export default function TaxonomyEditor() {
                   <em>Exclude:</em> {label.exclude_criteria}
                 </p>
               )}
+              {label.examples.length > 0 && (
+                <p>
+                  <em>Examples:</em> {label.examples.join('; ')}
+                </p>
+              )}
             </li>
           ))}
         </ul>
+        <p>
+          <a href={`/api/projects/${projectId}/export/taxonomy.json`}>Export as JSON</a>
+        </p>
       </div>
     )
   }
@@ -100,6 +158,13 @@ export default function TaxonomyEditor() {
   return (
     <div>
       <h1>Create Taxonomy</h1>
+
+      <label>
+        Import from JSON (optional — from a previous LabelForge export, or your own file
+        shaped like <code>{'{ "name": "...", "labels": [{ "name": "...", ... }] }'}</code>)
+        <input type="file" accept=".json,application/json" onChange={handleImportFile} />
+      </label>
+
       <form onSubmit={handleSubmit} className="form">
         <label>
           Taxonomy name
@@ -134,6 +199,13 @@ export default function TaxonomyEditor() {
               <textarea
                 value={label.exclude_criteria}
                 onChange={(e) => updateLabel(i, 'exclude_criteria', e.target.value)}
+              />
+            </label>
+            <label>
+              Examples (one per line)
+              <textarea
+                value={label.examples}
+                onChange={(e) => updateLabel(i, 'examples', e.target.value)}
               />
             </label>
           </fieldset>

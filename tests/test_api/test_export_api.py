@@ -105,3 +105,45 @@ def test_export_taxonomy_and_config_json(client: TestClient) -> None:
     dumped = str(config_body).lower()
     for forbidden in ("api_key", "token", "secret", "password"):
         assert forbidden not in dumped
+
+
+def test_exported_taxonomy_json_reimports_with_full_fidelity(client: TestClient) -> None:
+    """The taxonomy.json export must be re-importable (into a fresh project)
+    via the same taxonomy-creation endpoint the UI's "Import from JSON" file
+    picker posts to — including examples, which are easy to lose in transit."""
+    project_id = client.post(
+        "/api/projects", json={"name": "Source", "classification_type": "multiclass"}
+    ).json()["id"]
+    client.post(
+        f"/api/projects/{project_id}/taxonomy",
+        json={
+            "name": "Complaint Types",
+            "labels": [
+                {
+                    "name": "Access to Care",
+                    "description": "Cant get care",
+                    "include_criteria": "no appt",
+                    "exclude_criteria": "billing issues",
+                    "examples": ["couldnt get appointment", "provider unavailable"],
+                },
+                {"name": "Billing", "description": "payment issues", "examples": ["double charged"]},
+            ],
+        },
+    )
+    exported = client.get(f"/api/projects/{project_id}/export/taxonomy.json").json()
+
+    other_project_id = client.post(
+        "/api/projects", json={"name": "Destination", "classification_type": "multiclass"}
+    ).json()["id"]
+    imported = client.post(
+        f"/api/projects/{other_project_id}/taxonomy", json=exported
+    )
+    assert imported.status_code == 201
+    body = imported.json()
+    by_name = {label["name"]: label for label in body["labels"]}
+    assert by_name["Access to Care"]["include_criteria"] == "no appt"
+    assert by_name["Access to Care"]["examples"] == [
+        "couldnt get appointment",
+        "provider unavailable",
+    ]
+    assert by_name["Billing"]["examples"] == ["double charged"]
