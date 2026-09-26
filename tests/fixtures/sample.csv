@@ -1,0 +1,5 @@
+record_id,complaint_text,region,existing_label
+1,"Member could not get an appointment with a dermatologist.",West,Access to Care
+2,"Billing statement was incorrect twice in a row.",East,Billing
+3,"Wait time on the phone was over an hour.",West,Unmapped Category
+4,"Pharmacy would not fill the prescription.",South,
