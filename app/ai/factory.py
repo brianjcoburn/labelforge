@@ -54,3 +54,20 @@ def _get_local_provider(local_model_id: str | None) -> LLMProvider | None:
         logger.info("Loading local model into memory: %s", model_path)
         _local_provider_cache[model_path] = LocalLlamaProvider(model_path=model_path)
     return _local_provider_cache[model_path]
+
+
+def invalidate_provider(settings: ProjectSettings) -> None:
+    """Call this after any exception from a provider returned by
+    get_llm_provider(). llama.cpp is a native library — a failed decode can
+    leave its internal KV-cache state corrupted in a way a caught Python
+    exception doesn't undo, and reusing that same instance can hang (not just
+    error) on the next call. Dropping it from the cache forces a clean reload
+    (a few seconds) instead of a wedged process."""
+    if settings.llm_provider != LLMProviderType.LOCAL or not settings.local_model_id:
+        return
+    from app.services.model_service import get_model_path
+
+    model_path = get_model_path(settings.local_model_id)
+    if model_path and model_path in _local_provider_cache:
+        logger.warning("Evicting local model instance after a failure: %s", model_path)
+        del _local_provider_cache[model_path]

@@ -17,11 +17,22 @@ class LocalLlamaProvider(LLMProvider):
         self._llm = Llama(
             model_path=model_path,
             n_ctx=n_ctx,
+            # llama-cpp-python defaults n_batch/n_ubatch to 512 regardless of
+            # n_ctx. A real taxonomy prompt (several labels with definitions
+            # and include/exclude criteria) easily exceeds that and causes a
+            # native decode failure ("llama_decode returned -3"), so these
+            # must scale with n_ctx, not be left at the library default.
+            n_batch=n_ctx,
+            n_ubatch=n_ctx,
             n_gpu_layers=-1,  # offload every layer it can to the GPU (Metal on macOS)
             verbose=False,
         )
 
     def generate(self, prompt: str, *, temperature: float = 0.2, max_tokens: int = 512) -> str:
+        # Defensive: clears the KV cache before each call. A prior failed
+        # decode on this same instance can otherwise leave stale/inconsistent
+        # cache state that corrupts (or hangs) the next call.
+        self._llm.reset()
         result = self._llm.create_chat_completion(
             messages=[{"role": "user", "content": prompt}],
             temperature=temperature,

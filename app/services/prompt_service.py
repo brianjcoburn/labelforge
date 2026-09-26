@@ -1,7 +1,7 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.ai.factory import get_llm_provider
+from app.ai.factory import get_llm_provider, invalidate_provider
 from app.ai.prompt_builder import build_default_prompt
 from app.config import get_settings
 from app.core.exceptions import NotFoundError, ValidationError
@@ -120,12 +120,17 @@ def test_prompt(db: Session, project_id: int, data: PromptTestRequest) -> Prompt
             "model (Anthropic API key, or download a local model) in project settings"
         )
 
-    result = provider.classify(
-        record.text,
-        labels,
-        classification_type=project.classification_type,
-        prompt_template=template,
-    )
+    try:
+        result = provider.classify(
+            record.text,
+            labels,
+            classification_type=project.classification_type,
+            prompt_template=template,
+        )
+    except Exception as e:
+        invalidate_provider(project_settings)
+        raise ValidationError(f"The model failed to respond: {e}") from e
+
     by_id = {label.id: label.name for label in labels}
     return PromptTestOut(
         predicted_label_ids=result.label_ids,

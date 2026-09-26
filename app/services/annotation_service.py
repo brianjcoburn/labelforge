@@ -3,7 +3,7 @@ import logging
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.ai.factory import get_llm_provider
+from app.ai.factory import get_llm_provider, invalidate_provider
 from app.config import get_settings
 from app.core.exceptions import NotFoundError, ValidationError
 from app.models.annotation import Annotation, AnnotationRevision, annotation_revision_labels
@@ -113,6 +113,7 @@ def _get_or_generate_llm_suggestion(
         )
     except Exception:
         logger.warning("LLM prediction failed for record %s", record.id, exc_info=True)
+        invalidate_provider(settings)
         return None
 
     suggestion = LabelSuggestion(
