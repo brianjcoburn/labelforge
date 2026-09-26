@@ -25,6 +25,7 @@ from app.schemas.annotation import (
     AnnotationRevisionOut,
     AnnotationSubmit,
     ProgressOut,
+    RecordDetailOut,
     RecordOut,
     SuggestionOut,
 )
@@ -437,6 +438,7 @@ def get_annotation(db: Session, record_id: int) -> AnnotationOut | None:
 
     revision_outs = []
     current_labels: list[str] = []
+    current_label_ids: list[int] = []
     for rev in revisions:
         label_ids = list(
             db.scalars(
@@ -448,6 +450,7 @@ def get_annotation(db: Session, record_id: int) -> AnnotationOut | None:
         names = _label_names(db, label_ids)
         if rev.id == annotation.current_revision_id:
             current_labels = names
+            current_label_ids = label_ids
         revision_outs.append(
             AnnotationRevisionOut(
                 revision_number=rev.revision_number,
@@ -467,5 +470,28 @@ def get_annotation(db: Session, record_id: int) -> AnnotationOut | None:
         outcome=annotation.outcome,
         state=annotation.state,
         current_labels=current_labels,
+        current_label_ids=current_label_ids,
         revisions=revision_outs,
+    )
+
+
+def get_record_detail(db: Session, project_id: int, record_id: int) -> RecordDetailOut:
+    """Fetch a specific record for review/editing (the "Previous" flow) —
+    unlike get_next_record, this ignores sampling and annotation_mode
+    entirely: reviewing a record you've already seen isn't subject to the
+    same anchoring-bias timing rules as seeing it for the first time."""
+    record = db.get(Record, record_id)
+    if record is None or record.project_id != project_id:
+        raise NotFoundError(f"Record {record_id} not found in project {project_id}")
+
+    suggestion = _load_suggestion(db, record_id)
+    return RecordDetailOut(
+        record=RecordOut(
+            id=record.id,
+            text=record.text,
+            metadata=record.metadata_json,
+            existing_label_raw=record.existing_label_raw,
+        ),
+        suggestion=_suggestion_out(db, suggestion) if suggestion else None,
+        annotation=get_annotation(db, record_id),
     )

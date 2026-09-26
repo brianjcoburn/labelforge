@@ -1,20 +1,41 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../api/client'
 import LabelPicker from '../components/LabelPicker'
 import ProgressBar from '../components/ProgressBar'
-import type { AnnotateNextResponse, AnnotationResult, ProjectDetail, Suggestion, TaxonomyOut } from '../types/api'
+import type {
+  AnnotateNextResponse,
+  AnnotationResult,
+  ProjectDetail,
+  RecordDetail,
+  Suggestion,
+  TaxonomyOut,
+} from '../types/api'
 
 interface Reveal {
   humanLabels: string[]
   suggestion: Suggestion
 }
 
+type RecordView = {
+  id: number
+  text: string
+  metadata: Record<string, unknown>
+  existingLabelRaw: string | null
+  suggestion: Suggestion | null
+}
+
+// null = still loading; 'done' = no unlabeled records remain (Previous still works)
+type CurrentState = RecordView | 'done' | null
+
 export default function AnnotationWorkspace() {
   const { projectId } = useParams()
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [taxonomy, setTaxonomy] = useState<TaxonomyOut | null>(null)
-  const [next, setNext] = useState<AnnotateNextResponse | null>(null)
+  const [progress, setProgress] = useState<{ completed: number; total: number } | null>(null)
+  const [current, setCurrent] = useState<CurrentState>(null)
+  const [cursor, setCursor] = useState(-1)
+  const [historyLength, setHistoryLength] = useState(0)
   const [selected, setSelected] = useState<number[]>([])
   const [note, setNote] = useState('')
   const [revealed, setRevealed] = useState(false)
@@ -22,51 +43,110 @@ export default function AnnotationWorkspace() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const loadNext = useCallback(
-    (reveal = false) => {
-      api
-        .get<AnnotateNextResponse>(
-          `/projects/${projectId}/annotate/next${reveal ? '?reveal_suggestion=true' : ''}`
-        )
-        .then((res) => {
-          setNext(res)
-          setSelected([])
-          setNote('')
-          setRevealed(reveal)
-        })
-        .catch((e) => setError(e.message))
-    },
-    [projectId]
-  )
+  // Record ids visited this session, oldest first. A ref (not state) because
+  // it needs to be read/written synchronously between the two async loaders
+  // below — it never drives rendering directly, only `cursor`/`historyLength` do.
+  const history = useRef<number[]>([])
+
+  async function loadFreshNext(reveal = false) {
+    setBusy(true)
+    setError(null)
+    setPostSubmitReveal(null)
+    try {
+      const res = await api.get<AnnotateNextResponse>(
+        `/projects/${projectId}/annotate/next${reveal ? '?reveal_suggestion=true' : ''}`
+      )
+      setProgress(res.progress)
+      if (!res.record) {
+        setCurrent('done')
+        return
+      }
+      const rec = res.record
+      if (history.current[history.current.length - 1] !== rec.id) {
+        history.current = [...history.current, rec.id]
+      }
+      setCursor(history.current.length - 1)
+      setHistoryLength(history.current.length)
+      setCurrent({
+        id: rec.id,
+        text: rec.text,
+        metadata: rec.metadata,
+        existingLabelRaw: rec.existing_label_raw,
+        suggestion: res.suggestion,
+      })
+      setSelected([])
+      setNote('')
+      setRevealed(reveal)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load next record')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function loadHistoryRecord(index: number) {
+    const recordId = history.current[index]
+    if (recordId === undefined) return
+    setBusy(true)
+    setError(null)
+    setPostSubmitReveal(null)
+    try {
+      const detail = await api.get<RecordDetail>(`/projects/${projectId}/records/${recordId}`)
+      if (!detail.record) return
+      setCursor(index)
+      setCurrent({
+        id: detail.record.id,
+        text: detail.record.text,
+        metadata: detail.record.metadata,
+        existingLabelRaw: detail.record.existing_label_raw,
+        suggestion: detail.suggestion,
+      })
+      setSelected(detail.annotation?.current_label_ids ?? [])
+      setNote('')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load record')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   useEffect(() => {
     api.get<ProjectDetail>(`/projects/${projectId}`).then(setProject).catch(() => {})
     api.get<TaxonomyOut>(`/projects/${projectId}/taxonomy`).then(setTaxonomy).catch(() => {})
-    loadNext()
-  }, [projectId, loadNext])
+    loadFreshNext()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId])
+
+  const isReviewingPast = cursor >= 0 && cursor < historyLength - 1
 
   async function act(outcome: 'submitted' | 'skipped' | 'flagged') {
-    if (!next?.record) return
+    if (current === null || current === 'done') return
     setBusy(true)
     setError(null)
     try {
       const result = await api.post<AnnotationResult>(
-        `/projects/${projectId}/records/${next.record.id}/annotations`,
+        `/projects/${projectId}/records/${current.id}/annotations`,
         {
           outcome,
           label_ids: outcome === 'skipped' ? [] : selected,
           note: note || null,
           saw_suggestion_before_submit:
-            project?.settings.annotation_mode === 'on_demand' ? revealed : undefined,
+            !isReviewingPast && project?.settings.annotation_mode === 'on_demand'
+              ? revealed
+              : undefined,
         }
       )
-      if (result.revealed_suggestion) {
+      if (isReviewingPast) {
+        // Editing a past record: just move forward through what you've
+        // already visited — don't re-trigger first-exposure mode timing.
+        await loadHistoryRecord(cursor + 1)
+      } else if (result.revealed_suggestion) {
         setPostSubmitReveal({
           humanLabels: result.current_labels,
           suggestion: result.revealed_suggestion,
         })
       } else {
-        loadNext()
+        await loadFreshNext()
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save annotation')
@@ -77,11 +157,11 @@ export default function AnnotationWorkspace() {
 
   function continueAfterReveal() {
     setPostSubmitReveal(null)
-    loadNext()
+    loadFreshNext()
   }
 
   if (error) return <p className="error">{error}</p>
-  if (!project || !taxonomy || !next) return <p>Loading…</p>
+  if (!project || !taxonomy || current === null) return <p>Loading…</p>
 
   return (
     <div>
@@ -89,7 +169,24 @@ export default function AnnotationWorkspace() {
         <h1>{project.name}</h1>
         <Link to={`/projects/${projectId}`}>← Back to project</Link>
       </div>
-      <ProgressBar completed={next.progress.completed} total={next.progress.total} />
+      {progress && <ProgressBar completed={progress.completed} total={progress.total} />}
+
+      <div className="actions" style={{ marginBottom: '1rem' }}>
+        <button
+          className="secondary"
+          onClick={() => loadHistoryRecord(cursor - 1)}
+          disabled={busy || cursor <= 0}
+        >
+          ← Previous
+        </button>
+        <button
+          className="secondary"
+          onClick={() => loadHistoryRecord(cursor + 1)}
+          disabled={busy || !isReviewingPast}
+        >
+          Next →
+        </button>
+      </div>
 
       {postSubmitReveal ? (
         <div className="annotation-card">
@@ -100,31 +197,35 @@ export default function AnnotationWorkspace() {
           </div>
           <button onClick={continueAfterReveal}>Continue</button>
         </div>
-      ) : !next.record ? (
-        <p>All records have been reviewed. 🎉</p>
+      ) : current === 'done' ? (
+        <p>All records have been reviewed. 🎉 (You can still use Previous to review past ones.)</p>
       ) : (
         <div className="annotation-card">
-          <p className="record-text">{next.record.text}</p>
+          {isReviewingPast && (
+            <p className="tag">Reviewing a previous record — saving here updates it.</p>
+          )}
+          <p className="record-text">{current.text}</p>
 
-          {Object.keys(next.record.metadata).length > 0 && (
+          {Object.keys(current.metadata).length > 0 && (
             <p className="metadata">
-              {Object.entries(next.record.metadata)
+              {Object.entries(current.metadata)
                 .map(([k, v]) => `${k}: ${v}`)
                 .join(' · ')}
             </p>
           )}
 
-          {next.suggestion && (
+          {current.suggestion && (
             <div className="suggestion-panel">
-              <strong>{next.suggestion.source === 'imported' ? 'Imported' : 'AI'} suggestion:</strong>{' '}
-              {next.suggestion.label_names.join(', ') || '(none)'}
+              <strong>{current.suggestion.source === 'imported' ? 'Imported' : 'AI'} suggestion:</strong>{' '}
+              {current.suggestion.label_names.join(', ') || '(none)'}
             </div>
           )}
 
-          {!next.suggestion &&
+          {!current.suggestion &&
+            !isReviewingPast &&
             project.settings.annotation_mode === 'on_demand' &&
             !revealed && (
-              <button className="secondary" onClick={() => loadNext(true)}>
+              <button className="secondary" onClick={() => loadFreshNext(true)}>
                 Show Suggestion
               </button>
             )}

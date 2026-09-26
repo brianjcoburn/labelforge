@@ -145,6 +145,40 @@ def test_editing_annotation_preserves_history_and_provenance(client: TestClient)
         assert rev["created_at"]
 
 
+def test_record_detail_supports_going_back_to_edit(client: TestClient) -> None:
+    project_id, label_ids = _setup_project(client, "multiclass")
+    record_id = client.get(f"/api/projects/{project_id}/annotate/next").json()["record"]["id"]
+
+    # Never annotated yet: record detail still works, annotation is null.
+    resp = client.get(f"/api/projects/{project_id}/records/{record_id}")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["record"]["id"] == record_id
+    assert body["annotation"] is None
+
+    client.post(
+        f"/api/projects/{project_id}/records/{record_id}/annotations",
+        json={"outcome": "submitted", "label_ids": [label_ids[0]]},
+    )
+    resp = client.get(f"/api/projects/{project_id}/records/{record_id}")
+    body = resp.json()
+    assert body["annotation"]["current_labels"] == ["Access to Care"]
+    assert body["annotation"]["current_label_ids"] == [label_ids[0]]
+
+    # Editing via the same submit endpoint, as the "Previous" review flow does.
+    resp = client.post(
+        f"/api/projects/{project_id}/records/{record_id}/annotations",
+        json={"outcome": "submitted", "label_ids": [label_ids[1]]},
+    )
+    assert resp.json()["current_label_ids"] == [label_ids[1]]
+
+
+def test_record_detail_unknown_record_404s(client: TestClient) -> None:
+    project_id, _ = _setup_project(client, "multiclass")
+    resp = client.get(f"/api/projects/{project_id}/records/999999")
+    assert resp.status_code == 404
+
+
 def test_invalid_label_id_rejected(client: TestClient) -> None:
     project_id, _ = _setup_project(client, "multiclass")
     record_id = client.get(f"/api/projects/{project_id}/annotate/next").json()["record"]["id"]

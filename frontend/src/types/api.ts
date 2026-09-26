@@ -85,7 +85,14 @@ export interface AnnotationResult {
   outcome: AnnotationOutcome
   state: string
   current_labels: string[]
+  current_label_ids: number[]
   revealed_suggestion: Suggestion | null
+}
+
+export interface RecordDetail {
+  record: AnnotateNextResponse['record']
+  suggestion: Suggestion | null
+  annotation: AnnotationResult | null
 }
 
 export interface Progress {

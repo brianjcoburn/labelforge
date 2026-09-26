@@ -67,7 +67,17 @@ class AnnotationOut(BaseModel):
     outcome: AnnotationOutcome
     state: AnnotationState
     current_labels: list[str]
+    current_label_ids: list[int]
     revisions: list[AnnotationRevisionOut]
     # Populated in human_first mode right after submit, so the UI can reveal
     # the AI's independent prediction now that the human's judgment is locked in.
     revealed_suggestion: SuggestionOut | None = None
+
+
+class RecordDetailOut(BaseModel):
+    """Used when navigating back to review/edit a specific record (Previous),
+    as opposed to AnnotateNextOut's forward-sampling flow."""
+
+    record: RecordOut
+    suggestion: SuggestionOut | None
+    annotation: AnnotationOut | None

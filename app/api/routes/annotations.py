@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
 from app.core.exceptions import NotFoundError
-from app.schemas.annotation import AnnotateNextOut, AnnotationOut, AnnotationSubmit
+from app.schemas.annotation import AnnotateNextOut, AnnotationOut, AnnotationSubmit, RecordDetailOut
 from app.services import annotation_service
 
 router = APIRouter(tags=["annotations"])
@@ -29,3 +29,10 @@ def get_annotation(project_id: int, record_id: int, db: Session = Depends(get_db
     if result is None:
         raise NotFoundError(f"No annotation yet for record {record_id}")
     return result
+
+
+@router.get("/api/projects/{project_id}/records/{record_id}", response_model=RecordDetailOut)
+def get_record_detail(
+    project_id: int, record_id: int, db: Session = Depends(get_db)
+) -> RecordDetailOut:
+    return annotation_service.get_record_detail(db, project_id, record_id)
