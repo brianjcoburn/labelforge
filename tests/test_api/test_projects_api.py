@@ -20,7 +20,7 @@ def test_create_and_get_project(client: TestClient) -> None:
     assert body["has_taxonomy"] is False
     assert body["record_count"] == 0
     assert body["settings"]["annotation_mode"] == "on_demand"
-    assert body["settings"]["sampling_strategy"] == "random"
+    assert body["settings"]["automation_enabled"] is False
 
 
 def test_list_projects(client: TestClient) -> None:
@@ -45,14 +45,14 @@ def test_update_settings(client: TestClient) -> None:
 
     resp = client.patch(
         f"/api/projects/{project_id}/settings",
-        json={"annotation_mode": "ai_first", "batch_training_threshold": 50},
+        json={"annotation_mode": "ai_first", "automation_enabled": True},
     )
     assert resp.status_code == 200
     body = resp.json()
     assert body["annotation_mode"] == "ai_first"
-    assert body["batch_training_threshold"] == 50
+    assert body["automation_enabled"] is True
     # Untouched fields keep their defaults
-    assert body["sampling_strategy"] == "random"
+    assert body["llm_provider"] == "local"
 
 
 def test_delete_project_requires_matching_name(client: TestClient) -> None:

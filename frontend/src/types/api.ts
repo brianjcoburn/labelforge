@@ -1,17 +1,14 @@
 export type ClassificationType = 'binary' | 'multiclass' | 'multilabel'
-export type AnnotationMode = 'ai_first' | 'human_first' | 'on_demand'
-export type TrainingStrategy = 'manual' | 'batch' | 'adaptive'
-export type SamplingStrategy = 'random' | 'balanced' | 'uncertainty' | 'smart'
+export type AnnotationMode = 'ai_first' | 'human_first' | 'on_demand' | 'audit'
+export type TrainingTrigger = 'bootstrap' | 'scheduled' | 'taxonomy_invalidated' | 'manual'
 export type AnnotationOutcome = 'submitted' | 'skipped' | 'flagged'
-export type SuggestionSource = 'imported' | 'llm' | 'classifier'
+export type SuggestionSource = 'imported' | 'llm' | 'classifier' | 'auto_label'
 
 export type LLMProviderChoice = 'anthropic' | 'local'
 
 export interface ProjectSettings {
   annotation_mode: AnnotationMode
-  training_strategy: TrainingStrategy
-  sampling_strategy: SamplingStrategy
-  batch_training_threshold: number
+  automation_enabled: boolean
   llm_provider: LLMProviderChoice
   local_model_id: string | null
 }
@@ -79,6 +76,10 @@ export interface AnnotateNextResponse {
   } | null
   suggestion: Suggestion | null
   progress: { completed: number; total: number }
+  // "audit": this record was already auto-labeled and is being sampled for
+  // a human spot-check, not labeled from scratch. Always "annotate" unless
+  // automation_enabled is on for the project.
+  mode: 'annotate' | 'audit'
 }
 
 export interface AnnotationResult {
@@ -104,6 +105,9 @@ export interface Progress {
   remaining: number
   label_distribution: Record<string, number>
   llm_agreement: number | null
+  auto_labeled: number
+  trust_tier: string | null
+  audit_accuracy: number | null
 }
 
 export interface PromptVersion {
@@ -148,6 +152,15 @@ export interface ModelMetrics {
   macro_f1?: number
   n_train: number
   n_held_out: number
+  // present only when this candidate was compared against a previously
+  // active model (automation on) — see training_service._maybe_auto_activate
+  comparison?: {
+    vs_active_model_id: number
+    active_score: number
+    candidate_score: number
+    metric: string
+    regressed: boolean
+  }
 }
 
 export interface ModelVersion {
@@ -163,7 +176,7 @@ export interface ModelVersion {
 
 export interface TrainingRun {
   id: number
-  training_strategy: TrainingStrategy
+  trigger: TrainingTrigger
   trigger_reason: string
   status: 'pending' | 'running' | 'succeeded' | 'failed'
   annotation_count_snapshot: number

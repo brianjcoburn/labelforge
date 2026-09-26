@@ -158,7 +158,6 @@ def export_config_json(db: Session, project_id: int) -> dict:
         "classification_type": project.classification_type.value,
         "data_type": project.data_type.value,
         "annotation_mode": settings.annotation_mode.value,
-        "training_strategy": settings.training_strategy.value,
-        "sampling_strategy": settings.sampling_strategy.value,
-        "batch_training_threshold": settings.batch_training_threshold,
+        "automation_enabled": settings.automation_enabled,
+        "llm_provider": settings.llm_provider.value,
     }

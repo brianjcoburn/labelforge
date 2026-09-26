@@ -5,15 +5,12 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
 from app.models.base import TimestampMixin
-from app.models.enums import ModelState, TrainingRunStatus, TrainingStrategyType
+from app.models.enums import ModelState, TrainingRunStatus, TrainingTrigger
 
 
 class ModelVersion(Base, TimestampMixin):
-    """Schema only in v0.1 — no training workflow until milestone 3.
-
-    Immutable once created; state transitions (ACTIVE / INACTIVE /
-    INVALID_FOR_CURRENT_TAXONOMY) are the only thing that changes.
-    """
+    """Immutable once created; state transitions (ACTIVE / INACTIVE /
+    INVALID_FOR_CURRENT_TAXONOMY) are the only thing that changes."""
 
     __tablename__ = "model_version"
 
@@ -30,14 +27,12 @@ class ModelVersion(Base, TimestampMixin):
 
 
 class TrainingRun(Base, TimestampMixin):
-    """Schema only in v0.1 — no concrete training strategy implementation yet."""
-
     __tablename__ = "training_run"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     project_id: Mapped[int] = mapped_column(ForeignKey("project.id"))
     taxonomy_version_id: Mapped[int] = mapped_column(ForeignKey("taxonomy_version.id"))
-    training_strategy: Mapped[TrainingStrategyType]
+    trigger: Mapped[TrainingTrigger]
     trigger_reason: Mapped[str] = mapped_column(Text)
     status: Mapped[TrainingRunStatus]
     annotation_count_snapshot: Mapped[int]

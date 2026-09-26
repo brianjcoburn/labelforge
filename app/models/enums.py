@@ -15,6 +15,11 @@ class AnnotationMode(str, enum.Enum):
     AI_FIRST = "ai_first"
     HUMAN_FIRST = "human_first"
     ON_DEMAND = "on_demand"
+    # Not a project-level setting like the other three — stamped onto an
+    # annotation automatically when the orchestrator served the record as an
+    # audit (a sampled check on an already-auto-labeled record) rather than a
+    # fresh label. See app/orchestration.
+    AUDIT = "audit"
 
 
 class LLMProviderType(str, enum.Enum):
@@ -22,17 +27,15 @@ class LLMProviderType(str, enum.Enum):
     LOCAL = "local"
 
 
-class TrainingStrategyType(str, enum.Enum):
-    MANUAL = "manual"
-    BATCH = "batch"
-    ADAPTIVE = "adaptive"
+class TrainingTrigger(str, enum.Enum):
+    """Replaces the old MANUAL/BATCH/ADAPTIVE strategy enum with the concrete
+    conditions that actually cause a training run, per the orchestration
+    redesign — see app/orchestration/orchestrator.py."""
 
-
-class SamplingStrategyType(str, enum.Enum):
-    RANDOM = "random"
-    BALANCED = "balanced"
-    UNCERTAINTY = "uncertainty"
-    SMART = "smart"
+    BOOTSTRAP = "bootstrap"  # first model for a taxonomy version, floor just cleared
+    SCHEDULED = "scheduled"  # enough new confirmed annotations since the last run
+    TAXONOMY_INVALIDATED = "taxonomy_invalidated"  # active model's taxonomy version changed
+    MANUAL = "manual"  # explicit Train Now, always available
 
 
 class SourceFormat(str, enum.Enum):
@@ -68,6 +71,11 @@ class SuggestionSource(str, enum.Enum):
     IMPORTED = "imported"
     LLM = "llm"
     CLASSIFIER = "classifier"
+    # The orchestrator's fused, applied auto-label decision (both predictors
+    # agreed and the class's trust tier permitted acting on it) — distinct
+    # from the raw per-predictor LLM/CLASSIFIER suggestion rows, which are
+    # kept for provenance regardless of whether they were acted on.
+    AUTO_LABEL = "auto_label"
 
 
 class ModelState(str, enum.Enum):

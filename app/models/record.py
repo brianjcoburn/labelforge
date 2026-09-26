@@ -17,3 +17,11 @@ class Record(Base, TimestampMixin):
     # Raw value from an existing label column at import time, kept for visibility only.
     # Never auto-promoted to ground truth — see SuggestionSource.IMPORTED in suggestion.py.
     existing_label_raw: Mapped[str | None]
+    # Set once, permanently, when a taxonomy version's frozen evaluation set
+    # is first carved out (at bootstrap) — never trained on again after that,
+    # so every later model/prompt version is scored against the same
+    # yardstick and is genuinely comparable. Null for records never selected
+    # into a held-out set (the normal case for most records).
+    held_out_for_taxonomy_version_id: Mapped[int | None] = mapped_column(
+        ForeignKey("taxonomy_version.id")
+    )

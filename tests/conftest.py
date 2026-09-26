@@ -42,12 +42,27 @@ def fake_llm(monkeypatch: pytest.MonkeyPatch):
 
     provider = FakeLLMProvider()
     monkeypatch.setattr(
-        "app.services.annotation_service.get_llm_provider", lambda settings: provider
+        "app.services.suggestion_service.get_llm_provider", lambda settings: provider
     )
     monkeypatch.setattr(
         "app.services.prompt_service.get_llm_provider", lambda settings: provider
     )
+    monkeypatch.setattr(
+        "app.orchestration.trust.get_llm_provider", lambda settings: provider
+    )
     return provider
+
+
+@pytest.fixture()
+def fake_classifier(monkeypatch: pytest.MonkeyPatch):
+    """Swaps the real (slow, real-fine-tuning) transformer classifier for a
+    fast deterministic sklearn one for the duration of a test — see
+    tests/fakes.py::FakeClassifier."""
+    from app.ai.classifiers import registry
+    from tests.fakes import FakeClassifier
+
+    monkeypatch.setitem(registry.CLASSIFIER_REGISTRY, "transformer", FakeClassifier)
+    return FakeClassifier
 
 
 @pytest.fixture()

@@ -7,7 +7,11 @@ interface Props {
   onSaved: () => void
 }
 
-const MODE_DESCRIPTIONS: Record<AnnotationMode, string> = {
+// 'audit' isn't listed here — it's not something you pick as a project
+// default, it's stamped automatically on a per-record basis once automation
+// is on and a record gets sampled for a spot-check.
+type SelectableMode = Exclude<AnnotationMode, 'audit'>
+const MODE_DESCRIPTIONS: Record<SelectableMode, string> = {
   on_demand: "No suggestion shown unless you click \"Show Suggestion\" while labeling.",
   ai_first: 'The AI suggestion is shown before you label — you accept, change, or reject it.',
   human_first:
@@ -17,7 +21,8 @@ const MODE_DESCRIPTIONS: Record<AnnotationMode, string> = {
 export default function ModelSettings({ project, onSaved }: Props) {
   const [provider, setProvider] = useState<LLMProviderChoice>(project.settings.llm_provider)
   const [modelId, setModelId] = useState<string | null>(project.settings.local_model_id)
-  const [mode, setMode] = useState<AnnotationMode>(project.settings.annotation_mode)
+  const [mode, setMode] = useState<SelectableMode>(project.settings.annotation_mode as SelectableMode)
+  const [automationEnabled, setAutomationEnabled] = useState(project.settings.automation_enabled)
   const [catalog, setCatalog] = useState<LocalModelCatalogEntry[]>([])
   const [downloading, setDownloading] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -50,6 +55,7 @@ export default function ModelSettings({ project, onSaved }: Props) {
         llm_provider: provider,
         local_model_id: modelId,
         annotation_mode: mode,
+        automation_enabled: automationEnabled,
       })
       onSaved()
     } catch (err) {
@@ -117,7 +123,7 @@ export default function ModelSettings({ project, onSaved }: Props) {
 
       <fieldset>
         <legend>When to show AI suggestions</legend>
-        {(Object.keys(MODE_DESCRIPTIONS) as AnnotationMode[]).map((m) => (
+        {(Object.keys(MODE_DESCRIPTIONS) as SelectableMode[]).map((m) => (
           <label key={m} className="radio" style={{ alignItems: 'flex-start' }}>
             <input type="radio" checked={mode === m} onChange={() => setMode(m)} />
             <span>
@@ -125,6 +131,24 @@ export default function ModelSettings({ project, onSaved }: Props) {
             </span>
           </label>
         ))}
+      </fieldset>
+
+      <fieldset>
+        <legend>Automation</legend>
+        <label className="radio" style={{ alignItems: 'flex-start' }}>
+          <input
+            type="checkbox"
+            checked={automationEnabled}
+            onChange={(e) => setAutomationEnabled(e.target.checked)}
+          />
+          <span>
+            Turn on the full trust-driven loop: automatic bootstrap/scheduled retraining,
+            auto-activation of models that don't regress, and auto-labeling of records the
+            classifier and LLM agree on (once enough audited accuracy has been earned) —
+            with a sampled audit queue instead of full manual review of every record. Off by
+            default; when off, everything works exactly as manual labeling always has.
+          </span>
+        </label>
       </fieldset>
 
       {error && <p className="error">{error}</p>}

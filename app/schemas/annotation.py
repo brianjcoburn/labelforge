@@ -42,12 +42,20 @@ class ProgressDetailOut(BaseModel):
     remaining: int
     label_distribution: dict[str, int]
     llm_agreement: float | None = None
+    auto_labeled: int = 0
+    trust_tier: str | None = None
+    audit_accuracy: float | None = None
 
 
 class AnnotateNextOut(BaseModel):
     record: RecordOut | None
     suggestion: SuggestionOut | None
     progress: ProgressOut
+    # "audit": this record was already auto-labeled (both predictors agreed
+    # and the trust tier permitted it) and is being sampled for a human
+    # spot-check, not labeled from scratch. Always "annotate" when
+    # automation is off. See app/orchestration.
+    mode: str = "annotate"
 
 
 class AnnotationRevisionOut(BaseModel):

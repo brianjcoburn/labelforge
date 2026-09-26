@@ -1,4 +1,4 @@
-from sqlalchemy import Enum, ForeignKey, Integer, Text
+from sqlalchemy import Boolean, Enum, ForeignKey, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -8,8 +8,6 @@ from app.models.enums import (
     ClassificationType,
     DataType,
     LLMProviderType,
-    SamplingStrategyType,
-    TrainingStrategyType,
 )
 
 
@@ -33,13 +31,14 @@ class ProjectSettings(Base, TimestampMixin):
     annotation_mode: Mapped[AnnotationMode] = mapped_column(
         Enum(AnnotationMode), default=AnnotationMode.ON_DEMAND
     )
-    training_strategy: Mapped[TrainingStrategyType] = mapped_column(
-        Enum(TrainingStrategyType), default=TrainingStrategyType.MANUAL
-    )
-    sampling_strategy: Mapped[SamplingStrategyType] = mapped_column(
-        Enum(SamplingStrategyType), default=SamplingStrategyType.RANDOM
-    )
-    batch_training_threshold: Mapped[int] = mapped_column(Integer, default=100)
+    # Turns on the full trust-driven loop: automatic bootstrap/scheduled
+    # retraining, comparison-gated auto-activation, and auto-labeling of
+    # agreeing high-trust predictions (with audit sampling). Off by default —
+    # existing and new projects opt in explicitly rather than this silently
+    # starting to train models and auto-label records on its own. When off,
+    # everything still works exactly as milestone 1-3 did: manual Train Now,
+    # manual Activate, every record shown to a human.
+    automation_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     # Which LLM backs AI predictions for this project. LOCAL with no model_id
     # selected yet (the default) means AI features are simply unavailable —
     # same as ANTHROPIC with no API key configured — never an error state.

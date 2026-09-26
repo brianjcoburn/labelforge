@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models.enums import ModelState, TrainingRunStatus, TrainingStrategyType
+from app.models.enums import ModelState, TrainingRunStatus, TrainingTrigger
 
 
 class ModelVersionOut(BaseModel):
@@ -22,7 +22,7 @@ class TrainingRunOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    training_strategy: TrainingStrategyType
+    trigger: TrainingTrigger
     trigger_reason: str
     status: TrainingRunStatus
     annotation_count_snapshot: int

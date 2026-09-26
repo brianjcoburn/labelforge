@@ -23,6 +23,7 @@ type RecordView = {
   metadata: Record<string, unknown>
   existingLabelRaw: string | null
   suggestion: Suggestion | null
+  mode: 'annotate' | 'audit'
 }
 
 // null = still loading; 'done' = no unlabeled records remain (Previous still works)
@@ -73,8 +74,11 @@ export default function AnnotationWorkspace() {
         metadata: rec.metadata,
         existingLabelRaw: rec.existing_label_raw,
         suggestion: res.suggestion,
+        mode: res.mode,
       })
-      setSelected([])
+      // An audit's suggestion is pre-selected — accepting it is just
+      // submitting as-is; editing before submit is how you "correct" it.
+      setSelected(res.mode === 'audit' ? res.suggestion?.label_ids ?? [] : [])
       setNote('')
       setRevealed(reveal)
     } catch (err) {
@@ -100,6 +104,7 @@ export default function AnnotationWorkspace() {
         metadata: detail.record.metadata,
         existingLabelRaw: detail.record.existing_label_raw,
         suggestion: detail.suggestion,
+        mode: 'annotate',
       })
       setSelected(detail.annotation?.current_label_ids ?? [])
       setNote('')
@@ -204,6 +209,11 @@ export default function AnnotationWorkspace() {
           {isReviewingPast && (
             <p className="tag">Reviewing a previous record — saving here updates it.</p>
           )}
+          {current.mode === 'audit' && (
+            <p className="tag">
+              Audit — this was auto-labeled. Accept it as-is, or change the label(s) below and submit to correct it.
+            </p>
+          )}
           <p className="record-text">{current.text}</p>
 
           {Object.keys(current.metadata).length > 0 && (
@@ -216,7 +226,14 @@ export default function AnnotationWorkspace() {
 
           {current.suggestion && (
             <div className="suggestion-panel">
-              <strong>{current.suggestion.source === 'imported' ? 'Imported' : 'AI'} suggestion:</strong>{' '}
+              <strong>
+                {current.mode === 'audit'
+                  ? 'Auto-labeled as'
+                  : current.suggestion.source === 'imported'
+                    ? 'Imported suggestion'
+                    : 'AI suggestion'}
+                :
+              </strong>{' '}
               {current.suggestion.label_names.join(', ') || '(none)'}
             </div>
           )}
@@ -244,7 +261,7 @@ export default function AnnotationWorkspace() {
 
           <div className="actions">
             <button onClick={() => act('submitted')} disabled={busy}>
-              Submit
+              {current.mode === 'audit' ? 'Accept / Correct' : 'Submit'}
             </button>
             <button className="secondary" onClick={() => act('skipped')} disabled={busy}>
               Skip

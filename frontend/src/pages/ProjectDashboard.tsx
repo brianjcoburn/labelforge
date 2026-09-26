@@ -70,8 +70,8 @@ export default function ProjectDashboard() {
           <dd>{project.settings.annotation_mode}</dd>
         </div>
         <div>
-          <dt>Sampling</dt>
-          <dd>{project.settings.sampling_strategy}</dd>
+          <dt>Automation</dt>
+          <dd>{project.settings.automation_enabled ? 'On' : 'Off'}</dd>
         </div>
         {progress && (
           <>
@@ -87,6 +87,24 @@ export default function ProjectDashboard() {
               <dt>Remaining</dt>
               <dd>{progress.remaining}</dd>
             </div>
+            {project.settings.automation_enabled && (
+              <>
+                <div>
+                  <dt>Auto-labeled (pending audit)</dt>
+                  <dd>{progress.auto_labeled}</dd>
+                </div>
+                <div>
+                  <dt>Trust tier</dt>
+                  <dd>{progress.trust_tier ?? '—'}</dd>
+                </div>
+                {progress.audit_accuracy !== null && (
+                  <div>
+                    <dt>Audit accuracy</dt>
+                    <dd>{(progress.audit_accuracy * 100).toFixed(1)}%</dd>
+                  </div>
+                )}
+              </>
+            )}
             {progress.llm_agreement !== null && (
               <div>
                 <dt>Human / AI Agreement</dt>

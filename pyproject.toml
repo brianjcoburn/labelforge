@@ -16,6 +16,9 @@ dependencies = [
     "llama-cpp-python>=0.3",
     "huggingface-hub>=0.25",
     "scikit-learn>=1.5",
+    "torch>=2.9",
+    "transformers>=4.48",
+    "accelerate>=0.34",
 ]
 
 [project.optional-dependencies]

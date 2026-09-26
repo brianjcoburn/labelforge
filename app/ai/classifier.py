@@ -15,11 +15,10 @@ class TrainingMetrics:
 
 
 class BaseClassifier(ABC):
-    """Not tied to one algorithm — a future classifier (e.g. an embedding-
-    based one) implements this same interface. v0.1 ships exactly one
-    concrete implementation (TfidfLogisticClassifier) — see that module for
-    why "avoid a model zoo" means one baseline, not several to choose from.
-    """
+    """Not tied to one algorithm — a future classifier implements this same
+    interface and registers in app/ai/classifiers/registry.py. v0.1 ships one
+    concrete implementation, ModernBertClassifier (real transformer
+    fine-tuning) — see that module."""
 
     classification_type: ClassificationType
 
