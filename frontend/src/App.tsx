@@ -5,6 +5,7 @@ import DatasetImport from './pages/DatasetImport'
 import ProjectCreate from './pages/ProjectCreate'
 import ProjectDashboard from './pages/ProjectDashboard'
 import ProjectList from './pages/ProjectList'
+import PromptEditor from './pages/PromptEditor'
 import TaxonomyEditor from './pages/TaxonomyEditor'
 
 function App() {
@@ -23,6 +24,7 @@ function App() {
           <Route path="/projects/:projectId/taxonomy" element={<TaxonomyEditor />} />
           <Route path="/projects/:projectId/import" element={<DatasetImport />} />
           <Route path="/projects/:projectId/annotate" element={<AnnotationWorkspace />} />
+          <Route path="/projects/:projectId/prompts" element={<PromptEditor />} />
         </Routes>
       </main>
     </>

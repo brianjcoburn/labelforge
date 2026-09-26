@@ -3,7 +3,12 @@ import { Link, useParams } from 'react-router-dom'
 import { api } from '../api/client'
 import LabelPicker from '../components/LabelPicker'
 import ProgressBar from '../components/ProgressBar'
-import type { AnnotateNextResponse, ProjectDetail, TaxonomyOut } from '../types/api'
+import type { AnnotateNextResponse, AnnotationResult, ProjectDetail, Suggestion, TaxonomyOut } from '../types/api'
+
+interface Reveal {
+  humanLabels: string[]
+  suggestion: Suggestion
+}
 
 export default function AnnotationWorkspace() {
   const { projectId } = useParams()
@@ -13,6 +18,7 @@ export default function AnnotationWorkspace() {
   const [selected, setSelected] = useState<number[]>([])
   const [note, setNote] = useState('')
   const [revealed, setRevealed] = useState(false)
+  const [postSubmitReveal, setPostSubmitReveal] = useState<Reveal | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -44,19 +50,34 @@ export default function AnnotationWorkspace() {
     setBusy(true)
     setError(null)
     try {
-      await api.post(`/projects/${projectId}/records/${next.record.id}/annotations`, {
-        outcome,
-        label_ids: outcome === 'skipped' ? [] : selected,
-        note: note || null,
-        saw_suggestion_before_submit:
-          project?.settings.annotation_mode === 'on_demand' ? revealed : undefined,
-      })
-      loadNext()
+      const result = await api.post<AnnotationResult>(
+        `/projects/${projectId}/records/${next.record.id}/annotations`,
+        {
+          outcome,
+          label_ids: outcome === 'skipped' ? [] : selected,
+          note: note || null,
+          saw_suggestion_before_submit:
+            project?.settings.annotation_mode === 'on_demand' ? revealed : undefined,
+        }
+      )
+      if (result.revealed_suggestion) {
+        setPostSubmitReveal({
+          humanLabels: result.current_labels,
+          suggestion: result.revealed_suggestion,
+        })
+      } else {
+        loadNext()
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save annotation')
     } finally {
       setBusy(false)
     }
+  }
+
+  function continueAfterReveal() {
+    setPostSubmitReveal(null)
+    loadNext()
   }
 
   if (error) return <p className="error">{error}</p>
@@ -70,7 +91,16 @@ export default function AnnotationWorkspace() {
       </div>
       <ProgressBar completed={next.progress.completed} total={next.progress.total} />
 
-      {!next.record ? (
+      {postSubmitReveal ? (
+        <div className="annotation-card">
+          <p>You said: <strong>{postSubmitReveal.humanLabels.join(', ') || '(none)'}</strong></p>
+          <div className="suggestion-panel">
+            <strong>AI predicted:</strong>{' '}
+            {postSubmitReveal.suggestion.label_names.join(', ') || '(none)'}
+          </div>
+          <button onClick={continueAfterReveal}>Continue</button>
+        </div>
+      ) : !next.record ? (
         <p>All records have been reviewed. 🎉</p>
       ) : (
         <div className="annotation-card">

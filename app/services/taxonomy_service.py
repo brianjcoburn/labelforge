@@ -1,6 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.ai.llm_provider import LabelSpec
 from app.config import get_settings
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.models.enums import ClassificationType, TaxonomyChangeType
@@ -109,3 +110,23 @@ def get_active_version(db: Session, project_id: int) -> TaxonomyVersion:
     if version is None:
         raise NotFoundError(f"Project {project_id} has no active taxonomy version")
     return version
+
+
+def get_label_specs(db: Session, taxonomy_version_id: int) -> list[LabelSpec]:
+    """Labels for a taxonomy version, in the shape LLMProvider expects."""
+    labels = db.scalars(
+        select(Label)
+        .where(Label.taxonomy_version_id == taxonomy_version_id)
+        .order_by(Label.display_order)
+    )
+    return [
+        LabelSpec(
+            id=label.id,
+            name=label.name,
+            description=label.description,
+            include_criteria=label.include_criteria,
+            exclude_criteria=label.exclude_criteria,
+            examples=label.examples,
+        )
+        for label in labels
+    ]

@@ -41,6 +41,7 @@ class ProgressDetailOut(BaseModel):
     completed: int
     remaining: int
     label_distribution: dict[str, int]
+    llm_agreement: float | None = None
 
 
 class AnnotateNextOut(BaseModel):
@@ -67,3 +68,6 @@ class AnnotationOut(BaseModel):
     state: AnnotationState
     current_labels: list[str]
     revisions: list[AnnotationRevisionOut]
+    # Populated in human_first mode right after submit, so the UI can reveal
+    # the AI's independent prediction now that the human's judgment is locked in.
+    revealed_suggestion: SuggestionOut | None = None

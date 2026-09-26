@@ -37,6 +37,16 @@ def db_session(monkeypatch: pytest.MonkeyPatch) -> Generator[Session, None, None
 
 
 @pytest.fixture()
+def fake_llm(monkeypatch: pytest.MonkeyPatch):
+    from tests.fakes import FakeLLMProvider
+
+    provider = FakeLLMProvider()
+    monkeypatch.setattr("app.services.annotation_service.get_llm_provider", lambda: provider)
+    monkeypatch.setattr("app.services.prompt_service.get_llm_provider", lambda: provider)
+    return provider
+
+
+@pytest.fixture()
 def client(db_session: Session) -> Generator[TestClient, None, None]:
     def override_get_db() -> Generator[Session, None, None]:
         yield db_session

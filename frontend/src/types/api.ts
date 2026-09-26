@@ -67,6 +67,14 @@ export interface AnnotateNextResponse {
   progress: { completed: number; total: number }
 }
 
+export interface AnnotationResult {
+  record_id: number
+  outcome: AnnotationOutcome
+  state: string
+  current_labels: string[]
+  revealed_suggestion: Suggestion | null
+}
+
 export interface Progress {
   total: number
   submitted: number
@@ -74,4 +82,21 @@ export interface Progress {
   flagged: number
   remaining: number
   label_distribution: Record<string, number>
+  llm_agreement: number | null
+}
+
+export interface PromptVersion {
+  id: number
+  version_number: number
+  template_text: string
+  provider: string
+  model_name: string
+  is_active: boolean
+  created_at: string
+}
+
+export interface PromptTestResult {
+  predicted_label_ids: number[]
+  predicted_label_names: string[]
+  raw_response: string
 }

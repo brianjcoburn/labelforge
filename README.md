@@ -7,12 +7,19 @@ sampling, and integrated model training, in one tool.
 architecture anticipates image/audio and richer AI/model workflows without
 implementing them yet — see [Roadmap](#roadmap).
 
-## What's here (Milestone 1)
+## What's here (Milestones 1-2)
 
-A working manual annotation app: create a project, define a taxonomy, import a
-CSV, label records through a fast keyboard-friendly-ish workspace, track
-progress, and export the labeled dataset. No AI/model training yet — that's
-milestone 2+.
+A working manual + AI-assisted annotation app: create a project, define a
+taxonomy, import a CSV, label records through a fast keyboard-friendly-ish
+workspace, track progress, and export the labeled dataset (milestone 1) —
+plus a real LLM provider (Anthropic), prompt generation/editing/versioning,
+AI predictions surfaced through `ai_first`/`human_first`/`on_demand` modes,
+and human/AI agreement tracking (milestone 2). No model training yet — that's
+milestone 3+.
+
+AI features are entirely optional: without `ANTHROPIC_API_KEY` set, the app
+runs exactly as milestone 1 did — every AI code path degrades gracefully
+rather than erroring.
 
 ## Stack
 
@@ -51,6 +58,13 @@ npm run dev
 Open http://localhost:5173 — the Vite dev server proxies `/api` requests to
 the backend on port 8000.
 
+### Enabling AI-assisted labeling
+
+Set `ANTHROPIC_API_KEY` in `.env` (get one at
+https://console.anthropic.com/settings/keys). Restart the backend after
+adding it. `LABELFORGE_ANTHROPIC_MODEL` picks the model (defaults to a fast,
+inexpensive one — classification doesn't need a top-tier model).
+
 ## Testing
 
 ```bash
@@ -83,8 +97,8 @@ uv run alembic upgrade head
 
 ## Roadmap
 
-- **Milestone 2**: LLM provider abstraction, prompt generation/versioning, AI
-  predictions, ai-first/human-first/on-demand modes end-to-end
+- ~~**Milestone 2**: LLM provider abstraction, prompt generation/versioning, AI
+  predictions, ai-first/human-first/on-demand modes end-to-end~~ done
 - **Milestone 3**: baseline classifier, training, evaluation
 - **Milestone 4**: batch/adaptive training
 - **Milestone 5**: smart/uncertainty/balanced sampling

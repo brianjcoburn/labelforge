@@ -67,6 +67,12 @@ export default function ProjectDashboard() {
               <dt>Remaining</dt>
               <dd>{progress.remaining}</dd>
             </div>
+            {progress.llm_agreement !== null && (
+              <div>
+                <dt>Human / AI Agreement</dt>
+                <dd>{progress.llm_agreement}%</dd>
+              </div>
+            )}
           </>
         )}
       </dl>
@@ -99,6 +105,9 @@ export default function ProjectDashboard() {
                 Continue Labeling
               </Link>
             )}
+            <Link className="button secondary" to={`/projects/${project.id}/prompts`}>
+              Manage Prompt
+            </Link>
           </>
         )}
       </nav>

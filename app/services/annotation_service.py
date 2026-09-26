@@ -1,6 +1,9 @@
+import logging
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.ai.factory import get_llm_provider
 from app.config import get_settings
 from app.core.exceptions import NotFoundError, ValidationError
 from app.models.annotation import Annotation, AnnotationRevision, annotation_revision_labels
@@ -9,6 +12,7 @@ from app.models.enums import (
     AnnotationOutcome,
     AnnotationState,
     ClassificationType,
+    SuggestionSource,
 )
 from app.models.project import Project, ProjectSettings
 from app.models.record import Record
@@ -24,7 +28,10 @@ from app.schemas.annotation import (
     RecordOut,
     SuggestionOut,
 )
-from app.services.taxonomy_service import get_active_version
+from app.services.prompt_service import get_active_prompt_version
+from app.services.taxonomy_service import get_active_version, get_label_specs
+
+logger = logging.getLogger(__name__)
 
 
 def _annotator_id() -> str:
@@ -50,9 +57,80 @@ def _label_names(db: Session, label_ids: list[int]) -> list[str]:
 
 
 def _load_suggestion(db: Session, record_id: int) -> LabelSuggestion | None:
-    return db.scalar(
-        select(LabelSuggestion).where(LabelSuggestion.record_id == record_id)
+    """A record may have both an IMPORTED suggestion (from CSV import) and a
+    generated LLM one — LLM takes priority as the fresher, more relevant signal."""
+    llm_suggestion = db.scalar(
+        select(LabelSuggestion).where(
+            LabelSuggestion.record_id == record_id,
+            LabelSuggestion.source == SuggestionSource.LLM,
+        )
     )
+    if llm_suggestion is not None:
+        return llm_suggestion
+    return db.scalar(
+        select(LabelSuggestion).where(
+            LabelSuggestion.record_id == record_id,
+            LabelSuggestion.source == SuggestionSource.IMPORTED,
+        )
+    )
+
+
+def _get_or_generate_llm_suggestion(
+    db: Session, project: Project, record: Record
+) -> LabelSuggestion | None:
+    """Lazily generates and caches an LLM prediction for a record.
+
+    Returns None whenever AI isn't available or fails — callers must treat
+    that as ordinary (falls back to whatever suggestion already exists, or no
+    suggestion at all), never as an error. Generates once per record and
+    reuses it afterward; it does not regenerate if the prompt is edited later
+    (that kind of invalidation is a taxonomy/prompt-revision workflow, out of
+    scope here).
+    """
+    existing = db.scalar(
+        select(LabelSuggestion).where(
+            LabelSuggestion.record_id == record.id,
+            LabelSuggestion.source == SuggestionSource.LLM,
+        )
+    )
+    if existing is not None:
+        return existing
+
+    provider = get_llm_provider()
+    if provider is None:
+        return None
+
+    try:
+        taxonomy_version = get_active_version(db, project.id)
+        labels = get_label_specs(db, taxonomy_version.id)
+        prompt_version = get_active_prompt_version(db, project.id)
+        result = provider.classify(
+            record.text,
+            labels,
+            classification_type=project.classification_type,
+            prompt_template=prompt_version.template_text if prompt_version else None,
+        )
+    except Exception:
+        logger.warning("LLM prediction failed for record %s", record.id, exc_info=True)
+        return None
+
+    suggestion = LabelSuggestion(
+        record_id=record.id,
+        project_id=project.id,
+        taxonomy_version_id=taxonomy_version.id,
+        prompt_version_id=prompt_version.id if prompt_version else None,
+        source=SuggestionSource.LLM,
+    )
+    db.add(suggestion)
+    db.flush()
+    for label_id in result.label_ids:
+        db.execute(
+            label_suggestion_labels.insert().values(
+                suggestion_id=suggestion.id, label_id=label_id
+            )
+        )
+    db.commit()
+    return suggestion
 
 
 def _suggestion_out(db: Session, suggestion: LabelSuggestion) -> SuggestionOut:
@@ -110,7 +188,48 @@ def get_progress(db: Session, project_id: int) -> dict:
         "completed": completed,
         "remaining": max(total - completed, 0),
         "label_distribution": dict(label_rows),
+        "llm_agreement": _compute_llm_agreement(db, project_id),
     }
+
+
+def _compute_llm_agreement(db: Session, project_id: int) -> float | None:
+    """% of submitted annotations that exactly match the LLM suggestion they
+    were shown/compared against, among annotations that had one. None means
+    no LLM predictions have been compared against a human label yet."""
+    annotations = db.scalars(
+        select(Annotation).where(
+            Annotation.project_id == project_id,
+            Annotation.outcome == AnnotationOutcome.SUBMITTED,
+            Annotation.suggestion_id.is_not(None),
+        )
+    )
+    total = 0
+    matches = 0
+    for annotation in annotations:
+        suggestion = db.get(LabelSuggestion, annotation.suggestion_id)
+        if suggestion is None or suggestion.source != SuggestionSource.LLM:
+            continue
+        total += 1
+        human_labels = set(
+            db.scalars(
+                select(annotation_revision_labels.c.label_id).where(
+                    annotation_revision_labels.c.revision_id == annotation.current_revision_id
+                )
+            )
+        )
+        suggestion_labels = set(
+            db.scalars(
+                select(label_suggestion_labels.c.label_id).where(
+                    label_suggestion_labels.c.suggestion_id == suggestion.id
+                )
+            )
+        )
+        if human_labels == suggestion_labels:
+            matches += 1
+
+    if total == 0:
+        return None
+    return round(matches / total * 100, 1)
 
 
 def get_next_record(
@@ -145,6 +264,12 @@ def get_next_record(
         )
 
     record = db.get(Record, next_id)
+
+    should_generate = settings.annotation_mode == AnnotationMode.AI_FIRST or (
+        settings.annotation_mode == AnnotationMode.ON_DEMAND and reveal_suggestion
+    )
+    if should_generate:
+        _get_or_generate_llm_suggestion(db, project, record)
     suggestion = _load_suggestion(db, next_id)
 
     show_suggestion = suggestion is not None and (
@@ -277,7 +402,19 @@ def submit_annotation(
     annotation.revision_count = revision_number
 
     db.commit()
-    return get_annotation(db, record_id)
+
+    revealed = None
+    if settings.annotation_mode == AnnotationMode.HUMAN_FIRST and data.outcome in (
+        AnnotationOutcome.SUBMITTED,
+        AnnotationOutcome.FLAGGED,
+    ):
+        generated = _get_or_generate_llm_suggestion(db, project, record)
+        if generated is not None:
+            revealed = _suggestion_out(db, generated)
+
+    result = get_annotation(db, record_id)
+    result.revealed_suggestion = revealed
+    return result
 
 
 def get_annotation(db: Session, record_id: int) -> AnnotationOut | None:
