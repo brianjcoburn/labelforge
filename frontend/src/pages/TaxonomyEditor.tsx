@@ -19,27 +19,59 @@ const emptyLabel = (): DraftLabel => ({
   examples: '',
 })
 
-interface ImportedLabel {
-  name?: unknown
-  description?: unknown
-  include_criteria?: unknown
-  exclude_criteria?: unknown
-  examples?: unknown
+// Loosely typed on purpose: this is data from an arbitrary uploaded file, not
+// necessarily one LabelForge exported, so field naming may vary.
+type ImportedLabel = Record<string, unknown>
+type ImportedTaxonomy = Record<string, unknown>
+
+// Accepts a few common spellings for each field, in priority order, so a
+// hand-written or differently-shaped JSON file isn't silently dropped just
+// because it says "include" instead of "include_criteria".
+function firstString(raw: ImportedLabel, keys: string[]): string {
+  for (const key of keys) {
+    const value = raw[key]
+    if (typeof value === 'string') return value
+  }
+  return ''
 }
 
-interface ImportedTaxonomy {
-  name?: unknown
-  labels?: unknown
+function firstStringArray(raw: ImportedLabel, keys: string[]): string {
+  for (const key of keys) {
+    const value = raw[key]
+    if (Array.isArray(value)) return value.filter((v) => typeof v === 'string').join('\n')
+    if (typeof value === 'string') return value // a single example as a bare string
+  }
+  return ''
 }
 
 function asDraftLabel(raw: ImportedLabel): DraftLabel {
   return {
-    name: typeof raw.name === 'string' ? raw.name : '',
-    description: typeof raw.description === 'string' ? raw.description : '',
-    include_criteria: typeof raw.include_criteria === 'string' ? raw.include_criteria : '',
-    exclude_criteria: typeof raw.exclude_criteria === 'string' ? raw.exclude_criteria : '',
-    examples: Array.isArray(raw.examples) ? raw.examples.join('\n') : '',
+    name: firstString(raw, ['name', 'label', 'label_name']),
+    description: firstString(raw, ['description', 'definition']),
+    include_criteria: firstString(raw, [
+      'include_criteria',
+      'include_criterion',
+      'include',
+      'includes',
+      'inclusion_criteria',
+    ]),
+    exclude_criteria: firstString(raw, [
+      'exclude_criteria',
+      'exclude_criterion',
+      'exclude',
+      'excludes',
+      'exclusion_criteria',
+    ]),
+    examples: firstStringArray(raw, ['examples', 'example']),
   }
+}
+
+function findLabelsArray(parsed: ImportedTaxonomy): ImportedLabel[] | null {
+  for (const key of ['labels', 'label_list', 'classes', 'categories']) {
+    const value = parsed[key]
+    if (Array.isArray(value) && value.length > 0) return value as ImportedLabel[]
+  }
+  return null
 }
 
 interface LabelEditCardProps {
@@ -164,11 +196,15 @@ export default function TaxonomyEditor() {
     try {
       const text = await file.text()
       const parsed = JSON.parse(text) as ImportedTaxonomy
-      if (!Array.isArray(parsed.labels) || parsed.labels.length === 0) {
-        throw new Error('JSON must have a non-empty "labels" array')
+      const labelsArray = findLabelsArray(parsed)
+      if (!labelsArray) {
+        throw new Error(
+          'No labels array found — expected a "labels" key with a non-empty array of ' +
+            '{ name, description/definition, include, exclude, examples }'
+        )
       }
-      setName(typeof parsed.name === 'string' ? parsed.name : '')
-      setLabels((parsed.labels as ImportedLabel[]).map(asDraftLabel))
+      setName(firstString(parsed, ['name', 'taxonomy_name']) || name)
+      setLabels(labelsArray.map(asDraftLabel))
     } catch (err) {
       setError(
         err instanceof Error
@@ -254,8 +290,11 @@ export default function TaxonomyEditor() {
       <h1>Create Taxonomy</h1>
 
       <label>
-        Import from JSON (optional — from a previous LabelForge export, or your own file
-        shaped like <code>{'{ "name": "...", "labels": [{ "name": "...", ... }] }'}</code>)
+        Import from JSON (optional — from a previous LabelForge export, or your own file with
+        a <code>labels</code> array of objects; accepts <code>include</code>/
+        <code>include_criteria</code>, <code>exclude</code>/<code>exclude_criteria</code>,
+        <code>description</code>/<code>definition</code>, and <code>examples</code> as either
+        an array or a single string)
         <input type="file" accept=".json,application/json" onChange={handleImportFile} />
       </label>
 
