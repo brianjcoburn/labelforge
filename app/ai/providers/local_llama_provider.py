@@ -1,4 +1,4 @@
-import anthropic
+from llama_cpp import Llama
 
 from app.ai.llm_provider import ClassificationResult, LabelSpec, LLMProvider
 from app.ai.prompt_builder import TEXT_PLACEHOLDER, build_default_prompt
@@ -6,19 +6,28 @@ from app.ai.response_parsing import label_ids_from_names, parse_label_names
 from app.models.enums import ClassificationType
 
 
-class AnthropicProvider(LLMProvider):
-    def __init__(self, api_key: str, model: str) -> None:
-        self._client = anthropic.Anthropic(api_key=api_key)
-        self._model = model
+class LocalLlamaProvider(LLMProvider):
+    """Runs a local GGUF model via llama.cpp, offloaded to Metal on Apple
+    Silicon. Loading the model into memory happens once in __init__ (several
+    seconds) — callers should cache instances per model_path rather than
+    constructing a new one per request. See app/ai/factory.py.
+    """
+
+    def __init__(self, model_path: str, n_ctx: int = 4096) -> None:
+        self._llm = Llama(
+            model_path=model_path,
+            n_ctx=n_ctx,
+            n_gpu_layers=-1,  # offload every layer it can to the GPU (Metal on macOS)
+            verbose=False,
+        )
 
     def generate(self, prompt: str, *, temperature: float = 0.2, max_tokens: int = 512) -> str:
-        response = self._client.messages.create(
-            model=self._model,
-            max_tokens=max_tokens,
-            temperature=temperature,
+        result = self._llm.create_chat_completion(
             messages=[{"role": "user", "content": prompt}],
+            temperature=temperature,
+            max_tokens=max_tokens,
         )
-        return "".join(block.text for block in response.content if block.type == "text")
+        return result["choices"][0]["message"]["content"] or ""
 
     def classify(
         self,

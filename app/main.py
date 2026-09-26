@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import annotations, datasets, export, projects, prompts, taxonomies
+from app.api.routes import annotations, datasets, export, models, projects, prompts, taxonomies
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 
 app = FastAPI(title="LabelForge", version="0.1.0")
@@ -42,3 +42,4 @@ app.include_router(datasets.router)
 app.include_router(annotations.router)
 app.include_router(export.router)
 app.include_router(prompts.router)
+app.include_router(models.router)

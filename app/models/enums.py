@@ -17,6 +17,11 @@ class AnnotationMode(str, enum.Enum):
     ON_DEMAND = "on_demand"
 
 
+class LLMProviderType(str, enum.Enum):
+    ANTHROPIC = "anthropic"
+    LOCAL = "local"
+
+
 class TrainingStrategyType(str, enum.Enum):
     MANUAL = "manual"
     BATCH = "batch"

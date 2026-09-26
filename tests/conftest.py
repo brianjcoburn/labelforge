@@ -41,8 +41,12 @@ def fake_llm(monkeypatch: pytest.MonkeyPatch):
     from tests.fakes import FakeLLMProvider
 
     provider = FakeLLMProvider()
-    monkeypatch.setattr("app.services.annotation_service.get_llm_provider", lambda: provider)
-    monkeypatch.setattr("app.services.prompt_service.get_llm_provider", lambda: provider)
+    monkeypatch.setattr(
+        "app.services.annotation_service.get_llm_provider", lambda settings: provider
+    )
+    monkeypatch.setattr(
+        "app.services.prompt_service.get_llm_provider", lambda settings: provider
+    )
     return provider
 
 

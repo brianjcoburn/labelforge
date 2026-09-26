@@ -12,10 +12,11 @@ implementing them yet — see [Roadmap](#roadmap).
 A working manual + AI-assisted annotation app: create a project, define a
 taxonomy, import a CSV, label records through a fast keyboard-friendly-ish
 workspace, track progress, and export the labeled dataset (milestone 1) —
-plus a real LLM provider (Anthropic), prompt generation/editing/versioning,
-AI predictions surfaced through `ai_first`/`human_first`/`on_demand` modes,
-and human/AI agreement tracking (milestone 2). No model training yet — that's
-milestone 3+.
+plus a choice of LLM providers per project — a free local open-source model
+(Mistral/Gemma/gpt-oss, no account needed) or the Anthropic API — prompt
+generation/editing/versioning, AI predictions surfaced through
+`ai_first`/`human_first`/`on_demand` modes, and human/AI agreement tracking
+(milestone 2). No model training yet — that's milestone 3+.
 
 AI features are entirely optional: without `ANTHROPIC_API_KEY` set, the app
 runs exactly as milestone 1 did — every AI code path degrades gracefully
@@ -30,11 +31,12 @@ rather than erroring.
 
 ## Setup
 
-Requires Python 3.13+ and Node.
+Requires Python 3.13+, Node, and `cmake` (needed to compile `llama-cpp-python`
+for local model support — `brew install cmake` on macOS).
 
 ```bash
-# Backend
-uv sync --extra dev
+# Backend — CMAKE_ARGS enables Metal acceleration for local models on Apple Silicon
+CMAKE_ARGS="-DGGML_METAL=on" uv sync --extra dev
 cp .env.example .env   # adjust if needed; never commit the real .env
 uv run alembic upgrade head
 
@@ -60,10 +62,32 @@ the backend on port 8000.
 
 ### Enabling AI-assisted labeling
 
-Set `ANTHROPIC_API_KEY` in `.env` (get one at
-https://console.anthropic.com/settings/keys). Restart the backend after
-adding it. `LABELFORGE_ANTHROPIC_MODEL` picks the model (defaults to a fast,
-inexpensive one — classification doesn't need a top-tier model).
+Each project picks its own AI model in **Manage Prompt → AI model** — no
+global config needed for the local option:
+
+- **Local, free, open-source** (no account, no API key): pick a model from
+  the catalog and click Download. Runs entirely on your machine via
+  [`llama.cpp`](https://github.com/ggml-org/llama.cpp) (Metal-accelerated on
+  Apple Silicon). Catalog:
+  | Model | Brand | Size |
+  |---|---|---|
+  | Mistral 7B Instruct v0.3 | Mistral AI | 4.4 GB |
+  | Gemma 2 9B Instruct | Google | 5.8 GB |
+  | gpt-oss 20B | OpenAI | 12.1 GB |
+
+  All three are public, ungated HuggingFace repos — downloaded anonymously,
+  no HuggingFace account required. Check free disk space before downloading;
+  models are cached under `data/models/` (gitignored) so each is only
+  downloaded once. First inference after selecting a model takes a few
+  seconds to load it into memory; after that it's cached for the life of the
+  backend process.
+- **Anthropic API**: set `ANTHROPIC_API_KEY` in `.env` (get one at
+  https://console.anthropic.com/settings/keys) and restart the backend, then
+  pick "Anthropic API" for the project. `LABELFORGE_ANTHROPIC_MODEL` picks
+  the model (defaults to a fast, inexpensive one).
+
+A project with no model selected/downloaded yet simply has no AI
+features — never an error, just milestone-1 behavior.
 
 ## Testing
 

@@ -4,6 +4,7 @@ from app.models.enums import (
     AnnotationMode,
     ClassificationType,
     DataType,
+    LLMProviderType,
     SamplingStrategyType,
     TrainingStrategyType,
 )
@@ -23,6 +24,8 @@ class ProjectSettingsOut(BaseModel):
     training_strategy: TrainingStrategyType
     sampling_strategy: SamplingStrategyType
     batch_training_threshold: int
+    llm_provider: LLMProviderType
+    local_model_id: str | None
 
 
 class ProjectSettingsUpdate(BaseModel):
@@ -30,6 +33,8 @@ class ProjectSettingsUpdate(BaseModel):
     training_strategy: TrainingStrategyType | None = None
     sampling_strategy: SamplingStrategyType | None = None
     batch_training_threshold: int | None = None
+    llm_provider: LLMProviderType | None = None
+    local_model_id: str | None = None
 
 
 class ProjectOut(BaseModel):

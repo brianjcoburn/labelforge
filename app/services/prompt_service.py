@@ -5,7 +5,7 @@ from app.ai.factory import get_llm_provider
 from app.ai.prompt_builder import build_default_prompt
 from app.config import get_settings
 from app.core.exceptions import NotFoundError, ValidationError
-from app.models.project import Project
+from app.models.project import Project, ProjectSettings
 from app.models.record import Record
 from app.models.suggestion import PromptVersion
 from app.schemas.prompt import PromptTestOut, PromptTestRequest, PromptVersionCreate
@@ -110,10 +110,14 @@ def test_prompt(db: Session, project_id: int, data: PromptTestRequest) -> Prompt
     taxonomy_version = get_active_version(db, project_id)
     labels = get_label_specs(db, taxonomy_version.id)
 
-    provider = get_llm_provider()
+    project_settings = db.scalar(
+        select(ProjectSettings).where(ProjectSettings.project_id == project_id)
+    )
+    provider = get_llm_provider(project_settings)
     if provider is None:
         raise ValidationError(
-            "No LLM provider configured — set ANTHROPIC_API_KEY to test prompts"
+            "No LLM provider configured for this project — pick and set up a "
+            "model (Anthropic API key, or download a local model) in project settings"
         )
 
     result = provider.classify(

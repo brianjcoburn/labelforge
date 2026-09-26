@@ -76,7 +76,7 @@ def _load_suggestion(db: Session, record_id: int) -> LabelSuggestion | None:
 
 
 def _get_or_generate_llm_suggestion(
-    db: Session, project: Project, record: Record
+    db: Session, project: Project, settings: ProjectSettings, record: Record
 ) -> LabelSuggestion | None:
     """Lazily generates and caches an LLM prediction for a record.
 
@@ -96,7 +96,7 @@ def _get_or_generate_llm_suggestion(
     if existing is not None:
         return existing
 
-    provider = get_llm_provider()
+    provider = get_llm_provider(settings)
     if provider is None:
         return None
 
@@ -269,7 +269,7 @@ def get_next_record(
         settings.annotation_mode == AnnotationMode.ON_DEMAND and reveal_suggestion
     )
     if should_generate:
-        _get_or_generate_llm_suggestion(db, project, record)
+        _get_or_generate_llm_suggestion(db, project, settings, record)
     suggestion = _load_suggestion(db, next_id)
 
     show_suggestion = suggestion is not None and (
@@ -408,7 +408,7 @@ def submit_annotation(
         AnnotationOutcome.SUBMITTED,
         AnnotationOutcome.FLAGGED,
     ):
-        generated = _get_or_generate_llm_suggestion(db, project, record)
+        generated = _get_or_generate_llm_suggestion(db, project, settings, record)
         if generated is not None:
             revealed = _suggestion_out(db, generated)
 

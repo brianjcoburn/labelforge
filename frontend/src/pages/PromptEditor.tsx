@@ -1,16 +1,22 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../api/client'
-import type { AnnotateNextResponse, PromptTestResult, PromptVersion } from '../types/api'
+import ModelSettings from '../components/ModelSettings'
+import type { AnnotateNextResponse, ProjectDetail, PromptTestResult, PromptVersion } from '../types/api'
 
 export default function PromptEditor() {
   const { projectId } = useParams()
+  const [project, setProject] = useState<ProjectDetail | null>(null)
   const [versions, setVersions] = useState<PromptVersion[]>([])
   const [draft, setDraft] = useState('')
   const [sampleRecord, setSampleRecord] = useState<AnnotateNextResponse['record']>(null)
   const [testResult, setTestResult] = useState<PromptTestResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+
+  function loadProject() {
+    api.get<ProjectDetail>(`/projects/${projectId}`).then(setProject).catch(() => {})
+  }
 
   function loadVersions() {
     api
@@ -20,6 +26,7 @@ export default function PromptEditor() {
   }
 
   useEffect(() => {
+    loadProject()
     loadVersions()
     api
       .get<AnnotateNextResponse>(`/projects/${projectId}/annotate/next`)
@@ -97,6 +104,9 @@ export default function PromptEditor() {
         <Link to={`/projects/${projectId}`}>← Back to project</Link>
       </div>
 
+      {project && <ModelSettings project={project} onSaved={loadProject} />}
+
+      <h2>Prompt Template</h2>
       <div className="form">
         <label>
           Template ({'{{text}}'} is replaced with the record text)

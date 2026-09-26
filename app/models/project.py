@@ -7,6 +7,7 @@ from app.models.enums import (
     AnnotationMode,
     ClassificationType,
     DataType,
+    LLMProviderType,
     SamplingStrategyType,
     TrainingStrategyType,
 )
@@ -39,3 +40,10 @@ class ProjectSettings(Base, TimestampMixin):
         Enum(SamplingStrategyType), default=SamplingStrategyType.RANDOM
     )
     batch_training_threshold: Mapped[int] = mapped_column(Integer, default=100)
+    # Which LLM backs AI predictions for this project. LOCAL with no model_id
+    # selected yet (the default) means AI features are simply unavailable —
+    # same as ANTHROPIC with no API key configured — never an error state.
+    llm_provider: Mapped[LLMProviderType] = mapped_column(
+        Enum(LLMProviderType), default=LLMProviderType.LOCAL
+    )
+    local_model_id: Mapped[str | None] = mapped_column(default=None)  # catalog id

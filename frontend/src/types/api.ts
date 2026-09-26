@@ -5,11 +5,24 @@ export type SamplingStrategy = 'random' | 'balanced' | 'uncertainty' | 'smart'
 export type AnnotationOutcome = 'submitted' | 'skipped' | 'flagged'
 export type SuggestionSource = 'imported' | 'llm' | 'classifier'
 
+export type LLMProviderChoice = 'anthropic' | 'local'
+
 export interface ProjectSettings {
   annotation_mode: AnnotationMode
   training_strategy: TrainingStrategy
   sampling_strategy: SamplingStrategy
   batch_training_threshold: number
+  llm_provider: LLMProviderChoice
+  local_model_id: string | null
+}
+
+export interface LocalModelCatalogEntry {
+  id: string
+  display_name: string
+  brand: string
+  size_gb: number
+  notes: string
+  downloaded: boolean
 }
 
 export interface Project {
