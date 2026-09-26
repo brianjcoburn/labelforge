@@ -128,6 +128,9 @@ export default function ProjectDashboard() {
             <Link className="button secondary" to={`/projects/${project.id}/prompts`}>
               Manage Prompt
             </Link>
+            <Link className="button secondary" to={`/projects/${project.id}/models`}>
+              Models / Training
+            </Link>
           </>
         )}
       </nav>

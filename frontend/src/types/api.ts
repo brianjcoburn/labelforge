@@ -121,3 +121,54 @@ export interface PromptTestResult {
   predicted_label_names: string[]
   raw_response: string
 }
+
+export type ModelState = 'inactive' | 'active' | 'invalid_for_current_taxonomy'
+
+interface PerClassMetric {
+  precision: number
+  recall: number
+  f1: number
+  support: number
+}
+
+export interface ModelMetrics {
+  // binary / multiclass
+  accuracy?: number
+  precision?: number
+  recall?: number
+  f1?: number
+  roc_auc?: number
+  per_class?: Record<string, PerClassMetric>
+  confusion_matrix?: { labels: string[]; matrix: number[][] }
+  // multilabel
+  micro_f1?: number
+  hamming_loss?: number
+  per_label?: Record<string, PerClassMetric>
+  // shared
+  macro_f1?: number
+  n_train: number
+  n_held_out: number
+}
+
+export interface ModelVersion {
+  id: number
+  version_number: number
+  classifier_type: string
+  state: ModelState
+  metrics_json: ModelMetrics | null
+  activated_at: string | null
+  deactivated_at: string | null
+  created_at: string
+}
+
+export interface TrainingRun {
+  id: number
+  training_strategy: TrainingStrategy
+  trigger_reason: string
+  status: 'pending' | 'running' | 'succeeded' | 'failed'
+  annotation_count_snapshot: number
+  started_at: string | null
+  completed_at: string | null
+  resulting_model_version_id: number | null
+  error_message: string | null
+}

@@ -184,3 +184,21 @@ button.secondary {
 .label-option {
   font-weight: 400;
 }
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.5rem 0 1rem;
+  font-size: 0.85rem;
+}
+
+th,
+td {
+  border: 1px solid #e5e5e5;
+  padding: 0.35rem 0.6rem;
+  text-align: left;
+}
+
+th {
+  background: #f7f7f7;
+}

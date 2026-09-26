@@ -7,7 +7,7 @@ sampling, and integrated model training, in one tool.
 architecture anticipates image/audio and richer AI/model workflows without
 implementing them yet — see [Roadmap](#roadmap).
 
-## What's here (Milestones 1-2)
+## What's here (Milestones 1-3)
 
 A working manual + AI-assisted annotation app: create a project, define a
 taxonomy, import a CSV, label records through a fast keyboard-friendly-ish
@@ -16,7 +16,13 @@ plus a choice of LLM providers per project — a free local open-source model
 (Mistral/Gemma/gpt-oss, no account needed) or the Anthropic API — prompt
 generation/editing/versioning, AI predictions surfaced through
 `ai_first`/`human_first`/`on_demand` modes, and human/AI agreement tracking
-(milestone 2). No model training yet — that's milestone 3+.
+(milestone 2) — plus a baseline classifier (TF-IDF + logistic regression)
+trained on your human-confirmed annotations via "Train Now," evaluated on a
+held-out split, fully versioned, with explicit activation (**Models /
+Training** on the project dashboard) (milestone 3). Training the classifier
+into the live annotation-suggestion loop and automatic (batch/adaptive)
+retraining are milestone 4+ — for now, training is on-demand and its
+predictions live only on the Models page, not yet in the workspace.
 
 AI features are entirely optional: without `ANTHROPIC_API_KEY` set, the app
 runs exactly as milestone 1 did — every AI code path degrades gracefully
@@ -123,7 +129,7 @@ uv run alembic upgrade head
 
 - ~~**Milestone 2**: LLM provider abstraction, prompt generation/versioning, AI
   predictions, ai-first/human-first/on-demand modes end-to-end~~ done
-- **Milestone 3**: baseline classifier, training, evaluation
+- ~~**Milestone 3**: baseline classifier, training, evaluation~~ done
 - **Milestone 4**: batch/adaptive training
 - **Milestone 5**: smart/uncertainty/balanced sampling
 - **Milestone 6**: taxonomy revision workflow (add/merge/split/remove class,
