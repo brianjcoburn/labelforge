@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
-from app.schemas.taxonomy import TaxonomyCreate, TaxonomyOut
+from app.schemas.taxonomy import LabelOut, LabelUpdate, TaxonomyCreate, TaxonomyOut
 from app.services import taxonomy_service
 
 router = APIRouter(prefix="/api/projects/{project_id}/taxonomy", tags=["taxonomy"])
@@ -19,3 +19,10 @@ def create_taxonomy(
 @router.get("", response_model=TaxonomyOut)
 def get_taxonomy(project_id: int, db: Session = Depends(get_db)) -> TaxonomyOut:
     return taxonomy_service.get_taxonomy_detail(db, project_id)
+
+
+@router.patch("/labels/{label_id}", response_model=LabelOut)
+def update_label(
+    project_id: int, label_id: int, data: LabelUpdate, db: Session = Depends(get_db)
+) -> LabelOut:
+    return taxonomy_service.update_label(db, project_id, label_id, data)

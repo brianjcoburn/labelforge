@@ -59,3 +59,73 @@ def test_get_taxonomy_for_project_without_one_404s(client: TestClient) -> None:
     project_id = _create_project(client, "multiclass")
     resp = client.get(f"/api/projects/{project_id}/taxonomy")
     assert resp.status_code == 404
+
+
+def test_update_label_include_exclude(client: TestClient) -> None:
+    project_id = _create_project(client, "multiclass")
+    taxonomy = client.post(
+        f"/api/projects/{project_id}/taxonomy",
+        json={"name": "T", "labels": [{"name": "A"}, {"name": "B"}]},
+    ).json()
+    label_id = taxonomy["labels"][0]["id"]
+
+    resp = client.patch(
+        f"/api/projects/{project_id}/taxonomy/labels/{label_id}",
+        json={
+            "description": "Definition text",
+            "include_criteria": "include this",
+            "exclude_criteria": "exclude that",
+            "examples": ["ex1", "ex2"],
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["include_criteria"] == "include this"
+    assert body["exclude_criteria"] == "exclude that"
+    assert body["examples"] == ["ex1", "ex2"]
+
+    # Persisted, not just returned — confirm via a fresh GET.
+    refetched = client.get(f"/api/projects/{project_id}/taxonomy").json()
+    updated = next(l for l in refetched["labels"] if l["id"] == label_id)
+    assert updated["include_criteria"] == "include this"
+
+
+def test_update_label_rename(client: TestClient) -> None:
+    project_id = _create_project(client, "multiclass")
+    taxonomy = client.post(
+        f"/api/projects/{project_id}/taxonomy",
+        json={"name": "T", "labels": [{"name": "A"}, {"name": "B"}]},
+    ).json()
+    label_id = taxonomy["labels"][0]["id"]
+
+    resp = client.patch(
+        f"/api/projects/{project_id}/taxonomy/labels/{label_id}", json={"name": "Renamed"}
+    )
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "Renamed"
+
+
+def test_update_label_rejects_name_collision(client: TestClient) -> None:
+    project_id = _create_project(client, "multiclass")
+    taxonomy = client.post(
+        f"/api/projects/{project_id}/taxonomy",
+        json={"name": "T", "labels": [{"name": "A"}, {"name": "B"}]},
+    ).json()
+    label_id = taxonomy["labels"][0]["id"]
+
+    resp = client.patch(
+        f"/api/projects/{project_id}/taxonomy/labels/{label_id}", json={"name": "b"}
+    )
+    assert resp.status_code == 422
+
+
+def test_update_unknown_label_404s(client: TestClient) -> None:
+    project_id = _create_project(client, "multiclass")
+    client.post(
+        f"/api/projects/{project_id}/taxonomy",
+        json={"name": "T", "labels": [{"name": "A"}, {"name": "B"}]},
+    )
+    resp = client.patch(
+        f"/api/projects/{project_id}/taxonomy/labels/999999", json={"name": "X"}
+    )
+    assert resp.status_code == 404

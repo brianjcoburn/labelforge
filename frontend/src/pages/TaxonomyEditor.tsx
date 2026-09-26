@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api/client'
-import type { TaxonomyOut } from '../types/api'
+import type { Label, TaxonomyOut } from '../types/api'
 
 interface DraftLabel {
   name: string
@@ -40,6 +40,98 @@ function asDraftLabel(raw: ImportedLabel): DraftLabel {
     exclude_criteria: typeof raw.exclude_criteria === 'string' ? raw.exclude_criteria : '',
     examples: Array.isArray(raw.examples) ? raw.examples.join('\n') : '',
   }
+}
+
+interface LabelEditCardProps {
+  projectId: string | undefined
+  label: Label
+  onSaved: (updated: Label) => void
+}
+
+function LabelEditCard({ projectId, label, onSaved }: LabelEditCardProps) {
+  const [draft, setDraft] = useState<DraftLabel>({
+    name: label.name,
+    description: label.description ?? '',
+    include_criteria: label.include_criteria ?? '',
+    exclude_criteria: label.exclude_criteria ?? '',
+    examples: label.examples.join('\n'),
+  })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
+
+  function update(field: keyof DraftLabel, value: string) {
+    setDraft((prev) => ({ ...prev, [field]: value }))
+    setSaved(false)
+  }
+
+  async function save() {
+    setSaving(true)
+    setError(null)
+    try {
+      const updated = await api.patch<Label>(
+        `/projects/${projectId}/taxonomy/labels/${label.id}`,
+        {
+          name: draft.name,
+          description: draft.description || null,
+          include_criteria: draft.include_criteria || null,
+          exclude_criteria: draft.exclude_criteria || null,
+          examples: draft.examples
+            .split('\n')
+            .map((line) => line.trim())
+            .filter(Boolean),
+        }
+      )
+      onSaved(updated)
+      setSaved(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <fieldset>
+      <legend>{label.name}</legend>
+      <label>
+        Name
+        <input value={draft.name} onChange={(e) => update('name', e.target.value)} />
+      </label>
+      <label>
+        Definition
+        <textarea
+          value={draft.description}
+          onChange={(e) => update('description', e.target.value)}
+        />
+      </label>
+      <label>
+        Include
+        <textarea
+          value={draft.include_criteria}
+          onChange={(e) => update('include_criteria', e.target.value)}
+        />
+      </label>
+      <label>
+        Exclude
+        <textarea
+          value={draft.exclude_criteria}
+          onChange={(e) => update('exclude_criteria', e.target.value)}
+        />
+      </label>
+      <label>
+        Examples (one per line)
+        <textarea
+          value={draft.examples}
+          onChange={(e) => update('examples', e.target.value)}
+        />
+      </label>
+      {error && <p className="error">{error}</p>}
+      <button className="secondary" onClick={save} disabled={saving || !draft.name.trim()}>
+        {saved ? '✓ Saved' : 'Save'}
+      </button>
+    </fieldset>
+  )
 }
 
 export default function TaxonomyEditor() {
@@ -125,29 +217,31 @@ export default function TaxonomyEditor() {
         <p>
           {taxonomy.name} — version {taxonomy.active_version_number}
         </p>
-        <ul className="project-list">
+        <p className="metadata">
+          Editing a label's name, definition, include/exclude, or examples here is safe —
+          it never invalidates existing annotations. Adding or removing labels isn't
+          supported yet (that needs a taxonomy-versioning workflow that revalidates
+          affected annotations, which isn't built).
+        </p>
+        <div className="form">
           {taxonomy.labels.map((label) => (
-            <li key={label.id} style={{ display: 'block' }}>
-              <strong>{label.name}</strong>
-              {label.description && <p>{label.description}</p>}
-              {label.include_criteria && (
-                <p>
-                  <em>Include:</em> {label.include_criteria}
-                </p>
-              )}
-              {label.exclude_criteria && (
-                <p>
-                  <em>Exclude:</em> {label.exclude_criteria}
-                </p>
-              )}
-              {label.examples.length > 0 && (
-                <p>
-                  <em>Examples:</em> {label.examples.join('; ')}
-                </p>
-              )}
-            </li>
+            <LabelEditCard
+              key={label.id}
+              projectId={projectId}
+              label={label}
+              onSaved={(updated) =>
+                setTaxonomy((prev) =>
+                  prev && prev !== 'none'
+                    ? {
+                        ...prev,
+                        labels: prev.labels.map((l) => (l.id === updated.id ? updated : l)),
+                      }
+                    : prev
+                )
+              }
+            />
           ))}
-        </ul>
+        </div>
         <p>
           <a href={`/api/projects/${projectId}/export/taxonomy.json`}>Export as JSON</a>
         </p>

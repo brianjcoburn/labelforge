@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.ai.llm_provider import LabelSpec
@@ -7,7 +7,7 @@ from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.models.enums import ClassificationType, TaxonomyChangeType
 from app.models.project import Project
 from app.models.taxonomy import Label, Taxonomy, TaxonomyVersion
-from app.schemas.taxonomy import TaxonomyCreate
+from app.schemas.taxonomy import LabelUpdate, TaxonomyCreate
 
 
 def _validate_label_count(classification_type: ClassificationType, count: int) -> None:
@@ -110,6 +110,33 @@ def get_active_version(db: Session, project_id: int) -> TaxonomyVersion:
     if version is None:
         raise NotFoundError(f"Project {project_id} has no active taxonomy version")
     return version
+
+
+def update_label(db: Session, project_id: int, label_id: int, data: LabelUpdate) -> Label:
+    version = get_active_version(db, project_id)  # 404s if project has no taxonomy
+    label = db.get(Label, label_id)
+    if label is None or label.taxonomy_version_id != version.id:
+        raise NotFoundError(f"Label {label_id} not found in project {project_id}'s taxonomy")
+
+    updates = data.model_dump(exclude_unset=True)
+    if "name" in updates and updates["name"] is not None:
+        new_name = updates["name"].strip().lower()
+        collision = db.scalar(
+            select(Label).where(
+                Label.taxonomy_version_id == version.id,
+                Label.id != label_id,
+                func.lower(Label.name) == new_name,
+            )
+        )
+        if collision is not None:
+            raise ValidationError(f"Another label is already named '{updates['name']}'")
+
+    for field, value in updates.items():
+        setattr(label, field, value)
+
+    db.commit()
+    db.refresh(label)
+    return label
 
 
 def get_label_specs(db: Session, taxonomy_version_id: int) -> list[LabelSpec]:
