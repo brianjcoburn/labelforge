@@ -35,11 +35,15 @@ function firstString(raw: ImportedLabel, keys: string[]): string {
   return ''
 }
 
-function firstStringArray(raw: ImportedLabel, keys: string[]): string {
+// Several real-world taxonomy files use a LIST of bullet points for
+// include/exclude/examples (multiple criteria per label), not one sentence —
+// this is the form the reported bug actually had. Joins list items with
+// newlines to match the single multi-line textarea these fields edit as.
+function firstTextOrList(raw: ImportedLabel, keys: string[]): string {
   for (const key of keys) {
     const value = raw[key]
     if (Array.isArray(value)) return value.filter((v) => typeof v === 'string').join('\n')
-    if (typeof value === 'string') return value // a single example as a bare string
+    if (typeof value === 'string') return value
   }
   return ''
 }
@@ -47,22 +51,22 @@ function firstStringArray(raw: ImportedLabel, keys: string[]): string {
 function asDraftLabel(raw: ImportedLabel): DraftLabel {
   return {
     name: firstString(raw, ['name', 'label', 'label_name']),
-    description: firstString(raw, ['description', 'definition']),
-    include_criteria: firstString(raw, [
+    description: firstTextOrList(raw, ['description', 'definition']),
+    include_criteria: firstTextOrList(raw, [
       'include_criteria',
       'include_criterion',
       'include',
       'includes',
       'inclusion_criteria',
     ]),
-    exclude_criteria: firstString(raw, [
+    exclude_criteria: firstTextOrList(raw, [
       'exclude_criteria',
       'exclude_criterion',
       'exclude',
       'excludes',
       'exclusion_criteria',
     ]),
-    examples: firstStringArray(raw, ['examples', 'example']),
+    examples: firstTextOrList(raw, ['examples', 'example']),
   }
 }
 
