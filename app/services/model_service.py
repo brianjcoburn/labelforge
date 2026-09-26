@@ -32,6 +32,7 @@ def list_catalog() -> list[dict]:
             "brand": spec.brand,
             "size_gb": spec.size_gb,
             "notes": spec.notes,
+            "warning": spec.warning,
             "downloaded": get_model_path(spec.id) is not None,
         }
         for spec in LOCAL_MODEL_CATALOG

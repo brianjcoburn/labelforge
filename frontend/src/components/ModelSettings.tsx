@@ -96,6 +96,7 @@ export default function ModelSettings({ project, onSaved }: Props) {
                 <strong>{entry.display_name}</strong> ({entry.brand}) — {entry.size_gb} GB
               </label>
               <p className="metadata">{entry.notes}</p>
+              {entry.warning && <p className="error">⚠ {entry.warning}</p>}
               {entry.downloaded ? (
                 <span className="tag">✓ Downloaded</span>
               ) : (

@@ -22,6 +22,7 @@ export interface LocalModelCatalogEntry {
   brand: string
   size_gb: number
   notes: string
+  warning: string | null
   downloaded: boolean
 }
 

@@ -10,6 +10,11 @@ class LocalModelSpec:
     filename: str
     size_gb: float
     notes: str = ""
+    # Set only for a known-broken combination with the current
+    # llama-cpp-python version — surfaced distinctly from `notes` in the UI
+    # (a warning, not just informational text) since it means "this will
+    # currently fail," not "here's a tradeoff to weigh."
+    warning: str | None = None
 
 
 # Verified, public, ungated GGUF repos — no HuggingFace account or token
@@ -43,6 +48,13 @@ LOCAL_MODEL_CATALOG: list[LocalModelSpec] = [
         filename="gpt-oss-20b-MXFP4.gguf",
         size_gb=12.1,
         notes="Large download and memory footprint — check free disk/RAM before downloading.",
+        warning=(
+            "Currently fails on every classification (llama_decode error) — "
+            "llama-cpp-python 0.3.35 (the latest release as of writing) has no "
+            "chat-format support for gpt-oss's Harmony format, so it produces "
+            "malformed input for this model's architecture. Not something "
+            "LabelForge can fix; needs upstream support. Use Mistral or Gemma instead."
+        ),
     ),
 ]
 
