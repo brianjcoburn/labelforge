@@ -12,6 +12,26 @@ _CONSTRAINT_TEXT = {
 }
 
 
+def _split_criteria(text: str | None) -> list[str]:
+    """include_criteria/exclude_criteria are stored as one string, which may
+    itself hold multiple bullet points joined by newlines (e.g. from a
+    multi-bullet taxonomy import) — split those back out into a proper list
+    for the JSON representation, rather than dumping one run-on string."""
+    if not text:
+        return []
+    return [line.strip() for line in text.split("\n") if line.strip()]
+
+
+def _label_to_dict(label: LabelSpec) -> dict:
+    return {
+        "name": label.name,
+        "description": label.description,
+        "include_criteria": _split_criteria(label.include_criteria),
+        "exclude_criteria": _split_criteria(label.exclude_criteria),
+        "examples": label.examples,
+    }
+
+
 def _example_response(labels: list[LabelSpec], classification_type: ClassificationType) -> str:
     """A concrete, pretty-printed example using real label names when
     available — grounding the format in the actual taxonomy (rather than a
@@ -33,20 +53,8 @@ def build_default_prompt(
     The user can edit this freely before saving it as a PromptVersion —
     this is only the starting draft.
     """
-    label_blocks = []
-    for label in labels:
-        lines = [f"### {label.name}"]
-        if label.description:
-            lines.append(f"Definition: {label.description}")
-        if label.include_criteria:
-            lines.append(f"Include: {label.include_criteria}")
-        if label.exclude_criteria:
-            lines.append(f"Exclude: {label.exclude_criteria}")
-        if label.examples:
-            lines.append("Examples: " + "; ".join(label.examples))
-        label_blocks.append("\n".join(lines))
-
     constraint = _CONSTRAINT_TEXT[classification_type]
+    labels_json = json.dumps([_label_to_dict(label) for label in labels], indent=2)
     example = _example_response(labels, classification_type)
 
     return f"""You are classifying a piece of text against a fixed taxonomy of labels.
@@ -54,8 +62,7 @@ def build_default_prompt(
 {constraint}
 
 Labels:
-
-{chr(10).join(label_blocks)}
+{labels_json}
 
 Text to classify:
 \"\"\"
